@@ -1,0 +1,15 @@
+# Python specific
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+*.so
+.pytest_cache/
+.coverage
+
+# Fetcher specific
+/logs
+/data
+.env.local
+/tmp
+/downloads 

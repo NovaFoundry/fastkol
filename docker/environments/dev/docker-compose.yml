@@ -1,0 +1,43 @@
+# Development environment specific configuration
+services:
+  gateway:
+    volumes:
+      - ../Gateway:/app
+    command: ["go", "run", "cmd/main.go"]
+    environment:
+      - GIN_MODE=debug
+      - HTTP_PROXY=${HTTP_PROXY}
+      - HTTPS_PROXY=${HTTPS_PROXY}
+      - NO_PROXY=${NO_PROXY}
+    build:
+      context: ../Gateway
+      dockerfile: Dockerfile
+      args:
+        - HTTP_PROXY=${HTTP_PROXY}
+        - HTTPS_PROXY=${HTTPS_PROXY}
+        - NO_PROXY=${NO_PROXY}
+
+  fetcher:
+    volumes:
+      - ../Fetcher:/app
+    command: ["python", "-m", "app.main"]
+    environment:
+      - DEBUG=true
+      - HTTP_PROXY=${HTTP_PROXY}
+      - HTTPS_PROXY=${HTTPS_PROXY}
+      - NO_PROXY=${NO_PROXY}
+    build:
+      context: ../Fetcher
+      dockerfile: Dockerfile
+      args:
+        - HTTP_PROXY=${HTTP_PROXY}
+        - HTTPS_PROXY=${HTTPS_PROXY}
+        - NO_PROXY=${NO_PROXY}
+
+  adminer:
+    image: adminer
+    restart: always
+    ports:
+      - "8081:8080"
+    networks:
+      - graph-weaver_network 
