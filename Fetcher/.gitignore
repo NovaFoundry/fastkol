@@ -12,4 +12,12 @@ __pycache__/
 /data
 .env.local
 /tmp
-/downloads 
+/downloads
+
+# Virtual Environment
+venv/
+.venv/
+ENV/
+
+# Conda
+.conda/ 
