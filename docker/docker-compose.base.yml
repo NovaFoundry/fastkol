@@ -5,11 +5,8 @@ services:
     environment:
       POSTGRES_USER: ${DB_USER}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
-      POSTGRES_DB: ${DB_NAME}
     volumes:
-      - postgres_data:/var/lib/postgresql/data
-    ports:
-      - "${DB_PORT}:5432"
+      - volumes/postgres_data:/var/lib/postgresql/data
     networks:
       - graph-weaver_network
     restart: unless-stopped
@@ -20,41 +17,7 @@ services:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS}
     volumes:
-      - rabbitmq_data:/var/lib/rabbitmq
-    ports:
-      - "${RABBITMQ_PORT}:5672"
-      - "${RABBITMQ_MANAGEMENT_PORT}:15672"
-    networks:
-      - graph-weaver_network
-    restart: unless-stopped
-
-  gateway:
-    build:
-      context: ../Gateway
-      dockerfile: Dockerfile
-    environment:
-      - DB_HOST=postgres
-      - DB_USER=${DB_USER}
-      - DB_PASSWORD=${DB_PASSWORD}
-      - DB_NAME=${DB_NAME}
-      - RABBITMQ_URL=amqp://${RABBITMQ_USER}:${RABBITMQ_PASS}@rabbitmq:5672/
-    ports:
-      - "${GATEWAY_PORT}:8080"
-    networks:
-      - graph-weaver_network
-    restart: unless-stopped
-
-  fetcher:
-    build:
-      context: ../Fetcher
-      dockerfile: Dockerfile
-    environment:
-      - DB_HOST=postgres
-      - DB_USER=${DB_USER}
-      - DB_PASSWORD=${DB_PASSWORD}
-      - DB_NAME=${DB_NAME}
-      - RABBITMQ_URL=amqp://${RABBITMQ_USER}:${RABBITMQ_PASS}@rabbitmq:5672/
-      - GATEWAY_URL=http://gateway:8080
+      - volumes/rabbitmq_data:/var/lib/rabbitmq
     networks:
       - graph-weaver_network
     restart: unless-stopped

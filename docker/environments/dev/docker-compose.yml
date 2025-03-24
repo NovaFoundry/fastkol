@@ -1,43 +1,37 @@
-# Development environment specific configuration
+# Development environment configuration
 services:
-  gateway:
-    volumes:
-      - ../Gateway:/app
-    command: ["go", "run", "cmd/main.go"]
-    environment:
-      - GIN_MODE=debug
-      - HTTP_PROXY=${HTTP_PROXY}
-      - HTTPS_PROXY=${HTTPS_PROXY}
-      - NO_PROXY=${NO_PROXY}
-    build:
-      context: ../Gateway
-      dockerfile: Dockerfile
-      args:
-        - HTTP_PROXY=${HTTP_PROXY}
-        - HTTPS_PROXY=${HTTPS_PROXY}
-        - NO_PROXY=${NO_PROXY}
-
-  fetcher:
-    volumes:
-      - ../Fetcher:/app
-    command: ["python", "-m", "app.main"]
-    environment:
-      - DEBUG=true
-      - HTTP_PROXY=${HTTP_PROXY}
-      - HTTPS_PROXY=${HTTPS_PROXY}
-      - NO_PROXY=${NO_PROXY}
-    build:
-      context: ../Fetcher
-      dockerfile: Dockerfile
-      args:
-        - HTTP_PROXY=${HTTP_PROXY}
-        - HTTPS_PROXY=${HTTPS_PROXY}
-        - NO_PROXY=${NO_PROXY}
-
-  adminer:
-    image: adminer
-    restart: always
+  postgres:
+    image: postgres:17
     ports:
-      - "8081:8080"
+      - "${DB_PORT}:5432"
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - ../../volumes/postgres:/var/lib/postgresql/data
+      - ../../init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
     networks:
-      - graph-weaver_network 
+      - graph-weaver_network
+    restart: unless-stopped
+
+  rabbitmq:
+    image: rabbitmq:4-management
+    ports:
+      - "${RABBITMQ_PORT}:5672"
+      - "${RABBITMQ_MANAGEMENT_PORT}:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS}
+    volumes:
+      - ../../volumes/rabbitmq:/var/lib/rabbitmq
+    networks:
+      - graph-weaver_network
+    restart: unless-stopped
+
+networks:
+  graph-weaver_network:
+    driver: bridge
+
+volumes:
+  postgres:
+  rabbitmq:
