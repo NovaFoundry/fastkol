@@ -22,7 +22,7 @@ class TwitterFetcher(BaseFetcher):
             await self.page.wait_for_selector(
                 'script[data-testid="UserProfileSchema-test"]',
                 state='attached',  # 改为 attached 而不是默认的 visible
-                timeout=30000
+                timeout=10000
             )
             
             # 获取JSON数据
@@ -42,15 +42,14 @@ class TwitterFetcher(BaseFetcher):
             profile_data = {
                 "platform": self.platform,
                 "username": main_entity.get('additionalName', ''),
-                "display_name": main_entity.get('givenName', ''),
+                "nickname": main_entity.get('givenName', ''),
                 "is_verified": bool(main_entity.get('disambiguatingDescription') == 'X'),
                 "followers_count": interaction_stats.get('Follows', 0),
                 "following_count": interaction_stats.get('Friends', 0),
                 "tweet_count": interaction_stats.get('Tweets', 0),
                 "bio": main_entity.get('description', ''),
                 "location": main_entity.get('homeLocation', {}).get('name', ''),
-                "website": main_entity.get('url', ''),
-                "join_date": profile_json.get('dateCreated', '')[:7].replace('-', '年') + '月'
+                "url": main_entity.get('url', ''),
             }
             
             self.logger.info(f"成功获取用户资料: {username}")
