@@ -104,4 +104,10 @@ coverage/
 *.bak
 *.swp
 *.tmp
-*~ 
+*~
+
+# Python virtual environments
+venv/
+.venv/
+ENV/
+fetcher/ 

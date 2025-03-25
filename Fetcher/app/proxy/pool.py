@@ -10,7 +10,10 @@ from app.db.models import Proxy
 logger = logging.getLogger(__name__)
 
 class ProxyPool:
+    """代理池管理类"""
+    
     def __init__(self):
+        self.logger = logging.getLogger(self.__class__.__name__)
         self.proxies = []
         self.blacklist = set()
         self.last_update = 0
@@ -57,25 +60,24 @@ class ProxyPool:
             except Exception as e:
                 logger.error(f"更新代理池失败: {str(e)}")
                 
-    async def get_proxy(self) -> Optional[Dict]:
-        """获取一个可用代理"""
+    async def get_proxy(self):
+        """获取一个代理"""
         if not self.proxies:
-            await self.update_proxies()
-            
-        if not self.proxies:
-            logger.warning("没有可用的代理")
+            self.logger.warning("代理池为空，返回 None")
             return None
-            
-        # 随机选择一个代理
+        
         proxy = random.choice(self.proxies)
+        self.logger.info(f"使用代理: {proxy}")
         return proxy
-        
-    async def report_proxy_status(self, proxy: Dict, success: bool):
-        """报告代理使用状态，用于更新代理健康度"""
-        proxy_id = f"{proxy['host']}:{proxy['port']}"
-        
-        if not success:
-            logger.warning(f"代理 {proxy_id} 请求失败")
+    
+    async def report_proxy_status(self, proxy, success):
+        """报告代理状态"""
+        if success:
+            self.logger.info(f"代理 {proxy} 工作正常")
+        else:
+            self.logger.warning(f"代理 {proxy} 工作异常")
+            # 在实际应用中，可能会将失败的代理从池中移除
+            proxy_id = f"{proxy['host']}:{proxy['port']}"
             self.blacklist.add(proxy_id)
             
             # 从可用列表中移除

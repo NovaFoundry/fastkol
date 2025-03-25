@@ -1,4 +1,6 @@
 from celery import Celery
+import os
+import sys
 import logging
 import asyncio
 from app.config import settings
@@ -10,22 +12,26 @@ from app.proxy.pool import ProxyPool
 from app.account_pool.manager import AccountManager
 from app.db.operations import save_result
 
+# 添加项目根目录到 Python 路径
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 # 配置日志
 logger = logging.getLogger(__name__)
 
-# 创建Celery实例
-celery_app = Celery(
-    'crawler',
+# 创建 Celery 实例
+app = Celery(
+    'fetcher',
     broker=settings.CELERY_BROKER_URL,
-    backend=settings.CELERY_RESULT_BACKEND
+    backend=settings.CELERY_RESULT_BACKEND,
+    include=['app.fetchers.twitter']  # 包含任务模块
 )
 
-# 配置Celery
-celery_app.conf.update(
+# 可选的 Celery 配置
+app.conf.update(
     task_serializer='json',
     accept_content=['json'],
     result_serializer='json',
-    timezone='Asia/Shanghai',
+    timezone='UTC',
     enable_utc=True,
 )
 
@@ -33,7 +39,7 @@ celery_app.conf.update(
 proxy_pool = ProxyPool()
 account_manager = AccountManager()
 
-@celery_app.task
+@app.task
 def process_task(task_data):
     """处理爬虫任务"""
     try:
@@ -89,4 +95,7 @@ async def run_fetcher(platform, action, params):
     
     finally:
         # 清理资源
-        await fetcher.cleanup() 
+        await fetcher.cleanup()
+
+if __name__ == '__main__':
+    app.start() 
