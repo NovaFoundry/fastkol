@@ -2,20 +2,22 @@
 services:
   postgres:
     image: postgres:17
+    container_name: postgres
     ports:
       - "${DB_PORT}:5432"
     environment:
       POSTGRES_USER: ${DB_USER}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
     volumes:
-      - ../../volumes/postgres:/var/lib/postgresql/data
-      - ../../init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres_init:/docker-entrypoint-initdb.d
     networks:
       - graph-weaver_network
     restart: unless-stopped
 
   rabbitmq:
-    image: rabbitmq:4-management
+    image: rabbitmq:management-alpine
+    container_name: rabbitmq
     ports:
       - "${RABBITMQ_PORT}:5672"
       - "${RABBITMQ_MANAGEMENT_PORT}:15672"
@@ -23,15 +25,52 @@ services:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS}
     volumes:
-      - ../../volumes/rabbitmq:/var/lib/rabbitmq
+      - rabbitmq:/var/lib/rabbitmq
     networks:
       - graph-weaver_network
     restart: unless-stopped
+
+  redis:
+    image: redis:7.0-alpine  # 使用官方 Alpine 版本（轻量级）
+    container_name: redis
+    ports:
+      - "6379:6379"  # 默认 Redis 端口映射
+    volumes:
+      - redis_data:/data  # 持久化数据存储
+    # environment:
+      # - REDIS_PASSWORD=your_strong_password  # 密码保护（按需启用）
+    # 如果需要自定义配置文件（先创建本地 redis.conf 文件）:
+    # volumes:
+    #   - ./redis.conf:/usr/local/etc/redis/redis.conf
+    # command: redis-server /usr/local/etc/redis/redis.conf
+    networks:
+      - graph-weaver_network
+    restart: unless-stopped
+
+  rnacos:
+    image: qingpan/rnacos:stable-alpine
+    container_name: rnacos
+    environment:
+      - RNACOS_INIT_ADMIN_USERNAME=${RNACOS_USER}
+      - RNACOS_INIT_ADMIN_PASSWORD=${RNACOS_PASSWORD}
+      - RNACOS_HTTP_PORT=${RNACOS_HTTP_PORT}
+      - RNACOS_GRPC_PORT=${RNACOS_GRPC_PORT}
+      - RNACOS_HTTP_CONSOLE_PORT=${RNACOS_HTTP_CONSOLE_PORT}
+    ports:
+      - "8848:8848"
+      - "9848:9848"
+      - "10848:10848"
+    volumes:
+      - rnacos_data:/io:rw
+    networks:
+      - graph-weaver_network
 
 networks:
   graph-weaver_network:
     driver: bridge
 
 volumes:
-  postgres:
+  postgres_data:
   rabbitmq:
+  redis_data:
+  rnacos_data:

@@ -3,3 +3,4 @@ volumes/
 *.env
 !.env.template
 docker-compose.override.yml 
+init/postgres/init-db.sql
