@@ -138,65 +138,100 @@ class TwitterFetcher(BaseFetcher):
         self.logger.info(f"获取 Twitter 用户资料: {username}")
         
         try:
-            # 设置浏览器会话
-            await self._setup_browser_session()
-            
-            # 随机延迟
-            await self._random_delay()
-            
-            # 访问用户页面
-            await self.page.goto(f"https://x.com/{username}", wait_until='domcontentloaded')
-            
-            # 尝试绕过 Cloudflare
-            await self._bypass_cloudflare()
-            
-            # 模拟人类滚动行为
-            await self._simulate_human_scroll()
-            
-            # 模拟鼠标移动
-            await self._simulate_mouse_movement()
-            
-            # 修改等待条件为 'attached'，因为script元素通常是隐藏的
-            await self.page.wait_for_selector(
-                'script[data-testid="UserProfileSchema-test"]',
-                state='attached',  # 改为 attached 而不是默认的 visible
-                timeout=10000
-            )
-            
-            # 获取JSON数据
-            json_content = await self.page.eval_on_selector(
-                'script[data-testid="UserProfileSchema-test"]',
-                'element => element.textContent'
-            )
-            profile_json = json.loads(json_content)
-            main_entity = profile_json.get('mainEntity', {})
-            
-            # 从统计数据中获取关注者、关注数和推文数
-            interaction_stats = {
-                stat['name']: stat['userInteractionCount']
-                for stat in main_entity.get('interactionStatistic', [])
+            # 准备 API 请求参数
+            variables = {
+                "screen_name": username,
             }
             
+            features = {
+                "hidden_profile_subscriptions_enabled":True,
+                "profile_label_improvements_pcf_label_in_post_enabled":True,
+                "rweb_tipjar_consumption_enabled":True,
+                "responsive_web_graphql_exclude_directive_enabled":True,
+                "verified_phone_label_enabled":False,
+                "subscriptions_verification_info_is_identity_verified_enabled":True,
+                "subscriptions_verification_info_verified_since_enabled":True,
+                "highlights_tweets_tab_ui_enabled":True,
+                "responsive_web_twitter_article_notes_tab_enabled":True,
+                "subscriptions_feature_can_gift_premium":True,
+                "creator_subscriptions_tweet_preview_api_enabled":True,
+                "responsive_web_graphql_skip_user_profile_image_extensions_enabled":False,
+                "responsive_web_graphql_timeline_navigation_enabled":True
+            }
+            # 准备请求头
+            user_agent = random.choice(self.user_agents)
+            headers = {
+                "authorization": self.auth_params.get('auth_token'),
+                "x-csrf-token": self.auth_params.get('csrf_token'),
+                "cookie": self.auth_params.get('cookie'),
+                "user-agent": user_agent,
+                "content-type": "application/json",
+                "x-twitter-active-user": "yes",
+                "x-twitter-client-language": "zh-cn"
+            }
+            
+            # 构建请求 URL
+            endpoint = self.api_endpoints.get("user_by_screen_name")
+            if not endpoint:
+                self.logger.error("无法获取 user_by_screen_name API 端点")
+                return {}
+                
+            # URL 参数编码
+            params = {
+                "variables": json.dumps(variables),
+                "features": json.dumps(features)
+            }
+            query_string = urllib.parse.urlencode(params)
+            url = f"{endpoint}?{query_string}"
+            
+            # 设置代理
+            proxy = None
+            if self.proxy_enabled and self.proxy_url:
+                proxy = self.proxy_url
+                self.logger.info(f"使用代理: {proxy}")
+            
+            # 发送请求
+            timeout = aiohttp.ClientTimeout(total=30)
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                request_kwargs = {"headers": headers}
+                if proxy:
+                    request_kwargs["proxy"] = proxy
+                
+                async with session.get(url, **request_kwargs) as response:
+                    self.logger.info(f"API 请求状态码: {response.status}")
+                    response_data = await response.json()
+            
+            # 解析响应数据
+            user_data = response_data.get("data", {}).get("user", {}).get("result", {})
+            legacy_data = user_data.get("legacy", {})
+            
+            # 构建用户资料
             profile_data = {
                 "platform": self.platform,
-                "uid": main_entity.get('identifier', ''),
-                "username": main_entity.get('additionalName', ''),
-                "nickname": main_entity.get('givenName', ''),
-                "is_verified": bool(main_entity.get('disambiguatingDescription') == 'X'),
-                "followers_count": interaction_stats.get('Follows', 0),
-                "following_count": interaction_stats.get('Friends', 0),
-                "tweet_count": interaction_stats.get('Tweets', 0),
-                "bio": main_entity.get('description', ''),
-                "location": main_entity.get('homeLocation', {}).get('name', ''),
-                "url": main_entity.get('url', ''),
+                "uid": user_data.get("rest_id", ""),
+                "username": legacy_data.get("screen_name", ""),
+                "nickname": legacy_data.get("name", ""),
+                "is_verified": legacy_data.get("verified", False),
+                "followers_count": legacy_data.get("followers_count", 0),
+                "following_count": legacy_data.get("friends_count", 0),
+                "tweet_count": legacy_data.get("statuses_count", 0),
+                "bio": legacy_data.get("description", ""),
+                "location": legacy_data.get("location", ""),
+                "url": f"https://x.com/{legacy_data.get('screen_name', '')}"
             }
             
             self.logger.info(f"成功获取用户资料: {username}")
             return profile_data
             
+        except asyncio.TimeoutError:
+            self.logger.error(f"获取用户资料请求超时")
+            return {}
+        except aiohttp.ClientError as e:
+            self.logger.error(f"API请求错误: {str(e)}")
+            return {}
         except Exception as e:
-            self.logger.error(f"获取用户资料失败 {username}: {str(e)}")
-            raise
+            self.logger.error(f"获取用户资料失败: {str(e)}")
+            return {}
     
     def _generate_curl_command(self, url: str, headers: Dict[str, str], method: str = "GET") -> str:
         """
@@ -222,7 +257,7 @@ class TwitterFetcher(BaseFetcher):
         return curl_command
     
     async def find_similar_users(self, username: str, count: int = 20, uid: str = None) -> List[Dict[str, Any]]:
-        """找到与指定用户相似的用户
+        """找到与指定用户相似的用户,包括二度关系用户
         
         Args:
             username (str): 用户名
@@ -244,17 +279,84 @@ class TwitterFetcher(BaseFetcher):
                     self.logger.info(f"成功获取用户 {username} 的 uid: {uid}")
                 else:
                     self.logger.warning(f"无法获取用户 {username} 的 uid，将使用默认 uid")
+                    return []
+
+            # 用集合来存储已处理的用户ID，用于去重
+            processed_uids = set()
+            all_similar_users = []
             
-            auth_token = self.auth_params.get('auth_token')
-            csrf_token = self.auth_params.get('csrf_token')
-            cookie = self.auth_params.get('cookie')
+            # 步骤1: 获取第一层相似用户
+            first_level_users = await self._fetch_similar_users_by_uid(uid, count)
+            self.logger.info(f"获取到第一层相似用户: {len(first_level_users)} 个")
             
-            # 准备 API 请求
+            # 添加第一层用户并记录其 UID
+            for user in first_level_users:
+                if user["uid"] not in processed_uids:
+                    processed_uids.add(user["uid"])
+                    all_similar_users.append(user)
+            
+            # 步骤2: 获取第二层相似用户
+            second_level_users = []
+            
+            # 顺序处理每个第一层用户
+            for first_level_user in first_level_users[:20]:
+                if first_level_user["uid"]:
+                    # 顺序请求每个用户的相似用户
+                    users = await self._fetch_similar_users_by_uid(first_level_user["uid"], 20)
+                    print(333333, len(users))
+                    if isinstance(users, list):  # 确保结果是有效的
+                        second_level_users.extend(users)
+            
+            # 添加第二层用户(去重)
+            for user in second_level_users:
+                if user["uid"] not in processed_uids:
+                    processed_uids.add(user["uid"])
+                    all_similar_users.append(user)
+            
+            # 确保返回数量不超过请求数量
+            return all_similar_users[:count]
+            
+        except Exception as e:
+            self.logger.error(f"查找相似用户失败: {str(e)}")
+            return []
+
+    async def _extract_email_from_text(self, text: str) -> str:
+        """Extract email address from text if present
+        
+        Args:
+            text (str): Text to extract email from
+            
+        Returns:
+            str: Extracted email or empty string if none found
+        """
+        if not text:
+            return ""
+            
+        # Regular expression for email matching
+        email_pattern = r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}'
+        match = re.search(email_pattern, text)
+        
+        if match:
+            return match.group(0)
+        return ""
+
+    async def _fetch_similar_users_by_uid(self, uid: str, count: int) -> List[Dict[str, Any]]:
+        """通过用户ID获取相似用户
+        
+        Args:
+            uid (str): 用户ID
+            count (int): 要获取的用户数量
+        
+        Returns:
+            List[Dict[str, Any]]: 相似用户列表
+        """
+        try:
+            # 准备 API 请求头
             user_agent = random.choice(self.user_agents)
             headers = {
-                "authorization": auth_token,
-                "x-csrf-token": csrf_token,
-                "cookie": cookie,
+                "authorization": self.auth_params.get('auth_token'),
+                "x-csrf-token": self.auth_params.get('csrf_token'),
+                "cookie": self.auth_params.get('cookie'),
                 "user-agent": user_agent,
                 "content-type": "application/json",
                 "x-twitter-active-user": "yes",
@@ -264,10 +366,8 @@ class TwitterFetcher(BaseFetcher):
             # 准备请求参数
             variables = {
                 "count": count,
-                "context": json.dumps({"contextualUserId": uid or "44196397"})
+                "context": json.dumps({"contextualUserId": uid})
             }
-
-            self.logger.debug(f"Request variables: {json.dumps(variables)}")
             
             features = {
                 "rweb_video_screen_enabled": False,
@@ -304,55 +404,37 @@ class TwitterFetcher(BaseFetcher):
                 "responsive_web_enhance_cards_enabled": False
             }
             
-            # 构建完整的请求 URL 和参数
+            # 构建请求 URL
             endpoint = self.api_endpoints.get("similar_users")
             if not endpoint:
                 self.logger.error("无法获取 similar_users API 端点")
                 return []
-                
-            # 使用 urllib.parse 进行 URL 编码
+            
+            # URL 参数编码
             params = {
                 "variables": json.dumps(variables),
                 "features": json.dumps(features)
             }
-            
-            # 正确编码查询参数
             query_string = urllib.parse.urlencode(params)
             url = f"{endpoint}?{query_string}"
-
-            self.logger.debug(f"Request URL: {url}")
             
-            # 使用封装的方法生成 cURL 命令
-            curl_command = self._generate_curl_command(url, headers)
-            self.logger.info("等效的 cURL 命令:")
-            self.logger.info(curl_command)
-            
-            # 设置代理配置
+            # 设置代理
             proxy = None
             if self.proxy_enabled and self.proxy_url:
                 proxy = self.proxy_url
-                self.logger.info(f"使用代理: {proxy}")
             
-            # 使用 aiohttp 直接发送 HTTP 请求，添加超时设置
-            timeout = aiohttp.ClientTimeout(total=30)  # 设置30秒的总超时时间
+            # 发送请求
+            timeout = aiohttp.ClientTimeout(total=30)
             async with aiohttp.ClientSession(timeout=timeout) as session:
-                # 添加代理支持
                 request_kwargs = {"headers": headers}
                 if proxy:
                     request_kwargs["proxy"] = proxy
                 
                 async with session.get(url, **request_kwargs) as response:
-                    # 打印 HTTP 状态码
-                    status_code = response.status
-                    self.logger.info(f"API 请求状态码: {status_code}")
-                    
-                    # 获取响应数据
                     response_data = await response.json()
             
-            # 处理响应数据
+            # 解析响应数据
             similar_users = []
-            
-            # 解析响应数据，提取用户信息
             instructions = response_data.get("data", {}).get("connect_tab_timeline", {}).get("timeline", {}).get("instructions", [])
             
             for instruction in instructions:
@@ -367,6 +449,13 @@ class TwitterFetcher(BaseFetcher):
                             legacy = result.get("legacy", {})
                             if not result or not legacy:
                                 continue
+                            
+                            # 获取用户简介
+                            bio = legacy.get('description', '')
+                            
+                            # 从简介中提取邮箱
+                            email_in_bio = await self._extract_email_from_text(bio)
+                            
                             user_data = {
                                 "uid": result.get("rest_id", ""),
                                 "username": legacy.get('screen_name', ''),
@@ -375,28 +464,17 @@ class TwitterFetcher(BaseFetcher):
                                 "followers_count": legacy.get('followers_count', 0),
                                 "following_count": legacy.get('friends_count', 0),
                                 "tweet_count": legacy.get('statuses_count', 0),
-                                "bio": legacy.get('description', ''),
+                                "bio": bio,
+                                "email_in_bio": email_in_bio,
                                 "location": legacy.get('location', ''),
                                 "url": f"https://x.com/{legacy.get('screen_name', '')}"
                             }
                             similar_users.append(user_data)
-                                
-                            # 如果已经获取到足够数量的用户，则停止
-                            if len(similar_users) >= count:
-                                break
-                                
             
-            self.logger.info(f"成功找到 {len(similar_users)} 个相似用户")
             return similar_users
             
-        except asyncio.TimeoutError:
-            self.logger.error(f"查找相似用户请求超时")
-            return []
-        except aiohttp.ClientError as e:
-            self.logger.error(f"API请求错误: {str(e)}")
-            return []
         except Exception as e:
-            self.logger.error(f"查找相似用户失败: {str(e)}")
+            self.logger.error(f"获取相似用户失败: {str(e)}")
             return []
     
     async def login(self, email, password):
