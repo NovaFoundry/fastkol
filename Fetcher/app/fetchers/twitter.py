@@ -68,7 +68,6 @@ class TwitterFetcher(BaseFetcher):
     async def _random_delay(self, min_seconds=1, max_seconds=5):
         """随机延迟，模拟人类行为"""
         delay = random.uniform(min_seconds, max_seconds)
-        self.logger.debug(f"随机延迟 {delay:.2f} 秒")
         await asyncio.sleep(delay)
     
     async def _simulate_human_scroll(self, min_scrolls=2, max_scrolls=5):
@@ -303,9 +302,10 @@ class TwitterFetcher(BaseFetcher):
                 if first_level_user["uid"]:
                     # 顺序请求每个用户的相似用户
                     users = await self._fetch_similar_users_by_uid(first_level_user["uid"], 20)
-                    print(333333, len(users))
+                    self.logger.info(f"获取到{first_level_user['username']}第二层相似用户: {len(users)} 个")
                     if isinstance(users, list):  # 确保结果是有效的
                         second_level_users.extend(users)
+                    await asyncio.sleep(random.uniform(0.5, 1.5))
             
             # 添加第二层用户(去重)
             for user in second_level_users:
@@ -611,6 +611,188 @@ class TwitterFetcher(BaseFetcher):
             self.browser = None
             self.page = None
             self.logger.info("浏览器已关闭")
+    
+    async def _fetch_user_tweets_by_uid(self, uid: str, username: str, count: int, cursor: str = None) -> Dict[str, Any]:
+        """通过用户ID获取推文列表
+        
+        Args:
+            uid (str): 用户ID
+            count (int): 要获取的推文数量
+            cursor (str, optional): 分页游标，用于获取更多推文
+            
+        Returns:
+            Dict[str, Any]: 包含推文列表和分页信息的字典
+        """
+        try:
+            # 准备 API 请求头
+            user_agent = random.choice(self.user_agents)
+            headers = {
+                "authorization": self.auth_params.get('auth_token'),
+                "x-csrf-token": self.auth_params.get('csrf_token'),
+                "cookie": self.auth_params.get('cookie'),
+                "user-agent": user_agent,
+                "content-type": "application/json",
+                "x-twitter-active-user": "yes",
+                "x-twitter-client-language": "zh-cn"
+            }
+            
+            # 准备请求参数
+            variables = {
+                "userId": uid,
+                "count": count,
+                "includePromotedContent": False,
+                "withQuickPromoteEligibilityTweetFields": False,
+                "withVoice": True,
+                "withV2Timeline": True
+            }
+            
+            # 如果提供了游标，添加到变量中
+            if cursor:
+                variables["cursor"] = cursor
+            
+            features = {
+                "rweb_video_screen_enabled":False,"profile_label_improvements_pcf_label_in_post_enabled":False,"rweb_tipjar_consumption_enabled":True,"responsive_web_graphql_exclude_directive_enabled":True,"verified_phone_label_enabled":False,"creator_subscriptions_tweet_preview_api_enabled":True,"responsive_web_graphql_timeline_navigation_enabled":True,"responsive_web_graphql_skip_user_profile_image_extensions_enabled":False,"premium_content_api_read_enabled":False,"communities_web_enable_tweet_community_results_fetch":True,"c9s_tweet_anatomy_moderator_badge_enabled":True,"responsive_web_grok_analyze_button_fetch_trends_enabled":False,"responsive_web_grok_analyze_post_followups_enabled":True,"responsive_web_jetfuel_frame":False,"responsive_web_grok_share_attachment_enabled":True,"articles_preview_enabled":True,"responsive_web_edit_tweet_api_enabled":True,"graphql_is_translatable_rweb_tweet_is_translatable_enabled":True,"view_counts_everywhere_api_enabled":True,"longform_notetweets_consumption_enabled":True,"responsive_web_twitter_article_tweet_consumption_enabled":True,"tweet_awards_web_tipping_enabled":False,"responsive_web_grok_show_grok_translated_post":False,"responsive_web_grok_analysis_button_from_backend":False,"creator_subscriptions_quote_tweet_preview_enabled":False,"freedom_of_speech_not_reach_fetch_enabled":True,"standardized_nudges_misinfo":True,"tweet_with_visibility_results_prefer_gql_limited_actions_policy_enabled":True,"longform_notetweets_rich_text_read_enabled":True,"longform_notetweets_inline_media_enabled":True,"responsive_web_grok_image_annotation_enabled":True,"responsive_web_enhance_cards_enabled":False
+            }
+            
+            # 构建请求 URL
+            endpoint = self.api_endpoints.get("user_tweets")
+            if not endpoint:
+                self.logger.error("无法获取 user_tweets API 端点")
+                return {"tweets": [], "next_cursor": None}
+            
+            # URL 参数编码
+            params = {
+                "variables": json.dumps(variables),
+                "features": json.dumps(features)
+            }
+            query_string = urllib.parse.urlencode(params)
+            url = f"{endpoint}?{query_string}"
+            
+            # 设置代理
+            proxy = None
+            if self.proxy_enabled and self.proxy_url:
+                proxy = self.proxy_url
+            
+            # 发送请求
+            timeout = aiohttp.ClientTimeout(total=30)
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                request_kwargs = {"headers": headers}
+                if proxy:
+                    request_kwargs["proxy"] = proxy
+                
+                async with session.get(url, **request_kwargs) as response:
+                    response_data = await response.json()
+            
+            # 解析响应数据
+            tweets = []
+            next_cursor = None
+            
+            # 提取推文数据
+            instructions = response_data.get("data", {}).get("user", {}).get("result", {}).get("timeline", {}).get("timeline", {}).get("instructions", [])
+            
+            for instruction in instructions:
+                if instruction.get("type") == "TimelineAddEntries":
+                    entries = instruction.get("entries", [])
+                    for entry in entries:
+                        if entry.get("entryId", "").startswith("profile-conversation-"):
+                            items = entry.get("content", {}).get("items", [])
+                            for item in items:
+                                result = item.get("item", {}).get("itemContent", {}).get("tweet_results", {}).get("result", {})
+                                tweet_id = result.get("rest_id", "")
+                                tweet_type = result.get("__typename", "")
+                                if not tweet_id or tweet_type != "Tweet":
+                                    continue
+                                legacy = result.get("legacy", {})
+                                if not legacy:
+                                    continue
+                                
+                                # 如果是转发，跳过这个推文
+                                if legacy.get("is_retweet"):
+                                    continue
+                                    
+                                # 提取推文数据
+                                tweet_data = {
+                                    "id": tweet_id,
+                                    "text": legacy.get("full_text", ""),
+                                    "created_at": legacy.get("created_at", ""),
+                                    "favorite_count": legacy.get("favorite_count", 0),
+                                    "retweet_count": legacy.get("retweet_count", 0),
+                                    "reply_count": legacy.get("reply_count", 0),
+                                    "quote_count": legacy.get("quote_count", 0),
+                                    "url": f"https://x.com/{username}/status/{tweet_id}"
+                                }
+                                
+                                tweets.append(tweet_data)
+                        # 提取下一页游标
+                        elif entry.get("entryId", "").startswith("cursor-bottom-"):
+                            next_cursor = entry.get("content", {}).get("value", "")
+            
+            return {
+                "tweets": tweets,
+                "next_cursor": next_cursor
+            }
+            
+        except Exception as e:
+            self.logger.error(f"获取用户推文失败: {str(e)}")
+            import traceback
+            self.logger.error(traceback.format_exc())
+            return {"tweets": [], "next_cursor": None}
+
+    async def fetch_user_tweets(self, username: str, count: int = 20, uid: str = None) -> List[Any]:
+        """获取用户的推文列表
+        
+        Args:
+            username (str): 用户名
+            count (int): 要获取的推文数量）
+            uid (str, optional): 用户ID，如果提供则使用此ID获取推文
+            
+        Returns:
+            Dict[str, Any]: 包含推文列表和分页信息的字典
+        """
+        self.logger.info(f"获取用户 {username} 的推文列表，数量: {count}")
+        
+        try:
+            # 如果没有提供 uid，先获取用户资料以获取 uid
+            if not uid:
+                self.logger.info(f"未提供 uid，尝试获取用户 {username} 的资料以获取 uid")
+                user_profile = await self.fetch_user_profile(username)
+                if user_profile and "uid" in user_profile:
+                    uid = user_profile["uid"]
+                    self.logger.info(f"成功获取用户 {username} 的 uid: {uid}")
+                else:
+                    self.logger.warning(f"无法获取用户 {username} 的 uid，将使用默认方式获取推文")
+                    return []
+            
+            # 存储所有获取的推文
+            all_tweets = []
+            next_cursor = None
+            
+            # 循环获取推文，直到达到请求的数量或没有更多推文
+            while len(all_tweets) < count:
+                # 使用新的方法获取推文
+                result = await self._fetch_user_tweets_by_uid(uid, username, min(100, count - len(all_tweets)), next_cursor)
+                
+                # 添加本次获取的推文到总列表
+                all_tweets.extend(result.get("tweets", []))
+                
+                # 更新下一页游标
+                next_cursor = result.get("next_cursor")
+                
+                # 如果没有更多推文或已经达到请求的数量，退出循环
+                if not next_cursor or len(all_tweets) >= count:
+                    break
+                
+                # 添加随机延迟，避免请求过于频繁
+                await self._random_delay(1, 3)
+            
+            # 确保返回数量不超过请求数量
+            return all_tweets[:count]
+            
+        except Exception as e:
+            self.logger.error(f"获取用户推文失败: {str(e)}")
+            import traceback
+            self.logger.error(traceback.format_exc())
+            return []
 
 # def search_tweets(query: str, limit: int = 10, config: dict = None):
 #     """
