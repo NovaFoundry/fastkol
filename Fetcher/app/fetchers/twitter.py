@@ -255,6 +255,73 @@ class TwitterFetcher(BaseFetcher):
         curl_command = curl_command.rstrip(" \\\n")
         return curl_command
     
+    async def _extract_hashtags(self, text: str) -> List[str]:
+        """从文本中提取 hashtag
+        
+        Args:
+            text (str): 要提取 hashtag 的文本
+            
+        Returns:
+            List[str]: hashtag 列表
+        """
+        if not text:
+            return []
+        
+        # 使用正则表达式匹配 hashtag
+        hashtag_pattern = r'#(\w+)'
+        hashtags = re.findall(hashtag_pattern, text)
+        return hashtags
+
+    async def _get_user_hashtags(self, username: str, uid: str, bio: str = None) -> List[str]:
+        """获取用户的 hashtag
+        
+        Args:
+            username (str): 用户名
+            uid (str): 用户ID
+            
+        Returns:
+            List[str]: 用户最常用的 3-5 个 hashtag
+        """
+        try:
+            # 如果 bio 为空，说明调用时没传bio，需要获取用户资料; 
+            # 如果是空字符串，说明没获取到bio，没必要再去获取用户资料
+            if bio is None:
+                # 获取用户资料
+                user_profile = await self.fetch_user_profile(username)
+                bio = user_profile.get('bio', '')
+
+            if bio:
+                bio_hashtags = await self._extract_hashtags(bio)
+            else:
+                bio_hashtags = []
+            
+            # 获取用户最近的推文
+            tweets = await self.fetch_user_tweets(username, count=50, uid=uid)
+            
+            # 从推文中提取 hashtag
+            tweet_hashtags = []
+            for tweet in tweets:
+                tweet_hashtags.extend(await self._extract_hashtags(tweet.get('text', '')))
+            
+            # 合并所有 hashtag
+            all_hashtags = bio_hashtags + tweet_hashtags
+            
+            # 统计 hashtag 出现频率
+            hashtag_count = {}
+            for tag in all_hashtags:
+                hashtag_count[tag] = hashtag_count.get(tag, 0) + 1
+            
+            # 按频率排序并获取前 3-5 个
+            sorted_hashtags = sorted(hashtag_count.items(), key=lambda x: x[1], reverse=True)
+            top_hashtags = [tag for tag, _ in sorted_hashtags[:5]]
+            print(f"用户 {username} 的 hashtag: {top_hashtags}")
+            
+            return top_hashtags
+            
+        except Exception as e:
+            self.logger.error(f"获取用户 hashtag 失败: {str(e)}")
+            return []
+
     async def find_similar_users(self, username: str, count: int = 20, uid: str = None) -> List[Dict[str, Any]]:
         """找到与指定用户相似的用户,包括二度关系用户
         
@@ -287,7 +354,13 @@ class TwitterFetcher(BaseFetcher):
             # 步骤1: 获取第一层相似用户
             first_level_users = await self._fetch_similar_users_by_uid(uid, count)
             self.logger.info(f"获取到第一层相似用户: {len(first_level_users)} 个")
-            
+
+            if len(first_level_users) >= count:
+                all_similar_users = first_level_users[:count]
+                # 获取用户的 hashtag
+                for user in all_similar_users:
+                    user["hashtags"] = await self._get_user_hashtags(user["username"], user["uid"], user["bio"])
+                return all_similar_users
             # 添加第一层用户并记录其 UID
             for user in first_level_users:
                 if user["uid"] not in processed_uids:
@@ -312,6 +385,12 @@ class TwitterFetcher(BaseFetcher):
                 if user["uid"] not in processed_uids:
                     processed_uids.add(user["uid"])
                     all_similar_users.append(user)
+
+            # 获取用户的 hashtag
+            # for user in all_similar_users:
+            #     user["hashtags"] = await self._get_user_hashtags(user["username"], user["uid"], user["bio"])
+            #     # 添加随机延迟，避免请求过于频繁
+            #     await self._random_delay(1, 2)
             
             # 确保返回数量不超过请求数量
             return all_similar_users[:count]
@@ -612,6 +691,43 @@ class TwitterFetcher(BaseFetcher):
             self.page = None
             self.logger.info("浏览器已关闭")
     
+    async def _extract_tweet_data(self, result: Dict[str, Any], username: str) -> Dict[str, Any]:
+        """Extract tweet data from a result object
+        
+        Args:
+            result (Dict[str, Any]): The tweet result object
+            username (str): The username of the tweet author
+            
+        Returns:
+            Dict[str, Any]: Extracted tweet data or None if invalid
+        """
+        tweet_id = result.get("rest_id", "")
+        tweet_type = result.get("__typename", "")
+        if not tweet_id or tweet_type != "Tweet":
+            return {}
+            
+        legacy = result.get("legacy", {})
+        if not legacy:
+            return {}
+            
+        # Skip retweets
+        if legacy.get("is_retweet"):
+            return {}
+            
+        # Extract tweet data
+        tweet_data = {
+            "id": tweet_id,
+            "text": legacy.get("full_text", ""),
+            "created_at": legacy.get("created_at", ""),
+            "favorite_count": legacy.get("favorite_count", 0),
+            "retweet_count": legacy.get("retweet_count", 0),
+            "reply_count": legacy.get("reply_count", 0),
+            "quote_count": legacy.get("quote_count", 0),
+            "url": f"https://x.com/{username}/status/{tweet_id}"
+        }
+        
+        return tweet_data
+
     async def _fetch_user_tweets_by_uid(self, uid: str, username: str, count: int, cursor: str = None) -> Dict[str, Any]:
         """通过用户ID获取推文列表
         
@@ -623,6 +739,7 @@ class TwitterFetcher(BaseFetcher):
         Returns:
             Dict[str, Any]: 包含推文列表和分页信息的字典
         """
+        self.logger.info(f"获取用户 {username} 的推文列表，cursor: {cursor}")
         try:
             # 准备 API 请求头
             user_agent = random.choice(self.user_agents)
@@ -691,38 +808,30 @@ class TwitterFetcher(BaseFetcher):
             instructions = response_data.get("data", {}).get("user", {}).get("result", {}).get("timeline", {}).get("timeline", {}).get("instructions", [])
             
             for instruction in instructions:
-                if instruction.get("type") == "TimelineAddEntries":
+                # 提取置顶推文
+                if instruction.get("type") == "TimelinePinEntry":
+                    result = instruction.get("entry", {}).get("content", {}).get("itemContent", {}).get("tweet_results", {}).get("result", {})
+                    tweet_data = await self._extract_tweet_data(result, username)
+                    if tweet_data:
+                        tweets.append(tweet_data)
+
+                elif instruction.get("type") == "TimelineAddEntries":
                     entries = instruction.get("entries", [])
                     for entry in entries:
-                        if entry.get("entryId", "").startswith("profile-conversation-"):
+                        if entry.get("entryId", "").startswith("tweet-"):
+                            result = entry.get("content", {}).get("itemContent", {}).get("tweet_results", {}).get("result", {})
+                            tweet_data = await self._extract_tweet_data(result, username)
+                            if tweet_data:
+                                tweets.append(tweet_data)
+                            
+                        elif entry.get("entryId", "").startswith("profile-conversation-"):
                             items = entry.get("content", {}).get("items", [])
                             for item in items:
                                 result = item.get("item", {}).get("itemContent", {}).get("tweet_results", {}).get("result", {})
-                                tweet_id = result.get("rest_id", "")
-                                tweet_type = result.get("__typename", "")
-                                if not tweet_id or tweet_type != "Tweet":
-                                    continue
-                                legacy = result.get("legacy", {})
-                                if not legacy:
-                                    continue
-                                
-                                # 如果是转发，跳过这个推文
-                                if legacy.get("is_retweet"):
-                                    continue
+                                tweet_data = await self._extract_tweet_data(result, username)
+                                if tweet_data:
+                                    tweets.append(tweet_data)
                                     
-                                # 提取推文数据
-                                tweet_data = {
-                                    "id": tweet_id,
-                                    "text": legacy.get("full_text", ""),
-                                    "created_at": legacy.get("created_at", ""),
-                                    "favorite_count": legacy.get("favorite_count", 0),
-                                    "retweet_count": legacy.get("retweet_count", 0),
-                                    "reply_count": legacy.get("reply_count", 0),
-                                    "quote_count": legacy.get("quote_count", 0),
-                                    "url": f"https://x.com/{username}/status/{tweet_id}"
-                                }
-                                
-                                tweets.append(tweet_data)
                         # 提取下一页游标
                         elif entry.get("entryId", "").startswith("cursor-bottom-"):
                             next_cursor = entry.get("content", {}).get("value", "")
