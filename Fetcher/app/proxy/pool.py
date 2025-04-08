@@ -3,7 +3,7 @@ import time
 import random
 import asyncio
 from typing import Dict, List, Optional
-from app.config import settings
+from app.settings import settings
 
 logger = logging.getLogger(__name__)
 

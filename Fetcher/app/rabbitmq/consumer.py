@@ -2,7 +2,7 @@ import json
 import logging
 import aio_pika
 from app.celery_app import process_task
-from app.config import settings
+from app.settings import settings
 
 logger = logging.getLogger(__name__)
 

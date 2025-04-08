@@ -9,12 +9,12 @@ from pydantic import BaseModel, Field, field_validator
 from typing import Dict, Any, List, Optional, Union
 from contextlib import asynccontextmanager
 
-from app.config import settings
+from app.settings import settings
 from app.rabbitmq.consumer import RabbitMQConsumer
 from app.db.operations import init_db
-from app.core.nacos_client import init_nacos_client, register_service_to_nacos, load_config_from_nacos, setup_nacos_lifecycle
 from app.fetchers.twitter import TwitterFetcher
 from app.core.config_manager import config_manager
+from app.core.nacos_client import nacos_client
 # 导入其他平台的爬虫类
 
 # 配置日志
@@ -27,52 +27,61 @@ logger = logging.getLogger(__name__)
 # 存储爬虫任务状态和结果
 tasks = {}
 
-async def main():
-    # 初始化数据库连接
-    await init_db()
-    
-    # 启动RabbitMQ消费者
-    consumer = RabbitMQConsumer(
-        url=settings.RABBITMQ_URL,
-        queue=settings.RABBITMQ_QUEUE
-    )
-    
-    try:
-        logger.info("Starting RabbitMQ consumer...")
-        await consumer.start_consuming()
-    except KeyboardInterrupt:
-        logger.info("Shutting down...")
-    finally:
-        await consumer.close()
-
+# 定义 lifespan 上下文管理器
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup code (previously in startup_event)
+    # 启动逻辑
     logger.info("Fetcher Service starting up")
-    await init_db()
-    # Yield control to FastAPI
-    yield
-    # Shutdown code (previously in shutdown_event)
-    logger.info("Fetcher Service shutting down")
+    
+    try:
+        # 初始化配置管理器
+        logger.info("Initializing configuration manager...")
+        config_manager.initialize()
+        
+        # 注册服务到 Nacos
+        logger.info("Registering service to Nacos...")
+        if not nacos_client.register_service():
+            logger.warning("Failed to register service to Nacos")
+        
+        # 初始化数据库连接
+        logger.info("Initializing database connection...")
+        await init_db()
+        
+        # # 启动RabbitMQ消费者
+        # logger.info("Starting RabbitMQ consumer...")
+        # consumer = RabbitMQConsumer(
+        #     url=settings.get_config("rabbitmq", {}).get("url", ""),
+        #     queue=settings.get_config("rabbitmq", {}).get("queue", "")
+        # )
+        
+        # # 启动消费者但不等待它完成
+        # asyncio.create_task(consumer.start_consuming())
+        
+        yield
+        
+    except Exception as e:
+        logger.error(f"Error during startup: {e}")
+        raise
+    finally:
+        # 关闭逻辑
+        logger.info("Fetcher Service shutting down")
+        
+        # 注销 Nacos 服务
+        logger.info("Deregistering service from Nacos...")
+        nacos_client.deregister_service()
+        
+        # 关闭 RabbitMQ 消费者
+        if 'consumer' in locals():
+            await consumer.close()
 
-# 设置 Nacos 客户端
-nacos_client = init_nacos_client('config/nacos_config.yaml')
-config_manager.init_app(app)
-
-# 依赖项：获取配置
-def get_config():
-    if nacos_client and nacos_client.service_config:
-        return nacos_client.service_config
-    return settings.config
-
-# Create FastAPI app with lifespan
+# 创建 FastAPI 应用
 app = FastAPI(
-    title=settings.config.get("fastapi", {}).get("title", "Fetcher Service"),
-    description=settings.config.get("fastapi", {}).get("description", "Service for fetching data from various sources"),
-    version=settings.config.get("fastapi", {}).get("version", "0.1.0"),
-    docs_url=settings.config.get("fastapi", {}).get("docs_url", "/docs"),
-    redoc_url=settings.config.get("fastapi", {}).get("redoc_url", "/redoc"),
-    openapi_url=settings.config.get("fastapi", {}).get("openapi_url", "/openapi.json"),
+    title=settings.get_config("fastapi", {}).get("title", "Fetcher Service"),
+    description=settings.get_config("fastapi", {}).get("description", "Service for fetching data from various sources"),
+    version=settings.get_config("fastapi", {}).get("version", "0.1.0"),
+    docs_url=settings.get_config("fastapi", {}).get("docs_url", "/docs"),
+    redoc_url=settings.get_config("fastapi", {}).get("redoc_url", "/redoc"),
+    openapi_url=settings.get_config("fastapi", {}).get("openapi_url", "/openapi.json"),
     lifespan=lifespan
 )
 
@@ -84,23 +93,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# 注册服务到 Nacos
-if nacos_client:
-    if register_service_to_nacos(nacos_client):
-        logger.info("Service registered to Nacos successfully")
-    else:
-        logger.warning("Failed to register service to Nacos")
-    
-    # 加载配置
-    nacos_config = load_config_from_nacos(nacos_client, config_manager.update_config)
-    
-    # 设置生命周期管理
-    setup_nacos_lifecycle(app, nacos_client)
-
-# 初始化配置管理器 - 移到Nacos客户端设置之后
-config_manager.init_app(app)
-
 # ============= 爬虫 API 模型 =============
 
 class FollowsFilter(BaseModel):
@@ -254,12 +246,6 @@ async def root():
 @app.get("/health")
 async def health_check():
     return {"status": "healthy"}
-
-@app.get("/config")
-async def get_current_config(config: Dict[str, Any] = Depends(get_config)):
-    # 返回非敏感配置信息
-    safe_config = {k: v for k, v in config.items() if k not in ["secrets", "passwords", "tokens"]}
-    return safe_config
 
 # 爬虫任务路由
 @app.post("/fetch", response_model=TaskResponse)

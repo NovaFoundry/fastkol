@@ -3,7 +3,7 @@ import os
 import sys
 import logging
 import asyncio
-from app.config import settings
+from app.settings import settings
 from app.fetchers.twitter import TwitterFetcher
 from app.fetchers.youtube import YoutubeFetcher
 from app.fetchers.instagram import InstagramFetcher
@@ -21,8 +21,8 @@ logger = logging.getLogger(__name__)
 # 创建 Celery 实例
 app = Celery(
     'fetcher',
-    broker=settings.CELERY_BROKER_URL,
-    backend=settings.CELERY_RESULT_BACKEND,
+    broker=settings.get_config("celery", {}).get("broker_url", ""),
+    backend=settings.get_config("celery", {}).get("result_backend", ""),
     include=['app.fetchers.twitter']  # 包含任务模块
 )
 
