@@ -29,7 +29,7 @@ class NacosClient:
                 server_addresses=nacos_config['server_addr'],
                 namespace=nacos_config['namespace'],
                 username=nacos_config['username'],
-                password=nacos_config['password']
+                password=nacos_config['password'],
             )
             logger.info("Successfully connected to Nacos server")
         except Exception as e:
@@ -50,8 +50,7 @@ class NacosClient:
                 cluster_name=service_config['cluster_name'],
                 group_name=service_config['group_name'],
                 ephemeral=service_config['ephemeral'],
-                healthy=service_config['healthy'],
-                metadata=service_config.get('metadata', {})
+                heartbeat_interval=service_config.get('heartbeat_interval', 5)
             )
             logger.info(f"Successfully registered service {service_config['name']}")
             return True
