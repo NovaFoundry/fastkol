@@ -110,4 +110,3 @@ coverage/
 venv/
 .venv/
 ENV/
-fetcher/ 

@@ -1,0 +1,43 @@
+# 代理配置
+proxy:
+  enabled: false
+  url: "http://127.0.0.1:1080"
+
+# Celery配置
+celery:
+  broker_url: "amqp://guest:guest@localhost:5672//"
+  result_backend: "rpc://"
+  timezone: "UTC"
+  enable_utc: true
+
+# Twitter API配置
+twitter:
+  api_key: ""  # 填入您的Twitter API密钥
+  api_secret: ""
+  access_token: ""
+  access_secret: ""
+  endpoints:
+    similar_users: "https://x.com/i/api/graphql/WIeRrT1lB03IHxrLKXcY3g/ConnectTabTimeline"
+
+# 其他平台配置
+youtube:
+  api_key: ""
+
+instagram:
+  username: ""
+  password: ""
+
+tiktok:
+  api_key: ""
+
+fastapi:
+  title: Fetcher Service
+  description: Service for fetching data from various sources
+  version: 0.1.0
+  docs_url: /docs
+  redoc_url: /redoc
+  openapi_url: /openapi.json
+  
+nacos:
+  enabled: false
+  config_file: config/nacos_config.yaml 
