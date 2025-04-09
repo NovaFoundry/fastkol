@@ -24,4 +24,4 @@ ENV/
 
 config/config.yaml
 config/nacos_config.yaml
-nacos_data/
+nacos-data/
