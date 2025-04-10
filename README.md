@@ -11,7 +11,7 @@ docker compose up -d
 ```
 
 ### 2. 启动Fetcher
-请参考 [Fetcher 服务启动指南](README.md) 获取完整的启动说明，包括：
+请参考 [Fetcher 服务启动指南](Fetcher/README.md) 获取完整的启动说明，包括：
 
 - 环境要求
 - 依赖安装
