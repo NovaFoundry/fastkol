@@ -31,8 +31,8 @@ app.conf.update(
     task_serializer='json',
     accept_content=['json'],
     result_serializer='json',
-    timezone='UTC',
-    enable_utc=True,
+    timezone=settings.get_config("celery", {}).get("timezone", "UTC"),
+    enable_utc=settings.get_config("celery", {}).get("enable_utc", True),
 )
 
 # 创建全局资源
@@ -43,11 +43,12 @@ account_manager = AccountManager()
 def process_task(task_data):
     """处理爬虫任务"""
     try:
+        task_id = task_data.get('task_id')
         platform = task_data.get('platform')
         action = task_data.get('action')
         params = task_data.get('params', {})
         
-        logger.info(f"处理 {platform} 任务: {action}")
+        logger.info(f"处理任务 {task_id}: {platform} 平台, {action} 操作")
         
         # 运行异步任务
         result = asyncio.run(run_fetcher(platform, action, params))
@@ -82,14 +83,49 @@ async def run_fetcher(platform, action, params):
     
     try:
         # 执行指定操作
-        if action == "find_similar_users":
+        if action == "similar":
             username = params.get("username")
             count = params.get("count", 5)
-            return await fetcher.find_similar_users(username, count)
-        elif action == "fetch_user_profile":
+            
+            if not username:
+                raise ValueError("查找相似用户需要提供用户名")
+                
+            results = await fetcher.find_similar_users(username, count)
+            
+            # 应用关注者筛选
+            follows_min = params.get("follows_min")
+            follows_max = params.get("follows_max")
+            
+            if follows_min is not None or follows_max is not None:
+                filtered_results = []
+                for user in results:
+                    followers = user.get("followers_count", 0)
+                    if (follows_min is None or followers >= follows_min) and \
+                       (follows_max is None or followers <= follows_max):
+                        filtered_results.append(user)
+                results = filtered_results
+                
+            return results
+            
+        elif action == "profile":
             username = params.get("username")
-            return await fetcher.fetch_user_profile(username)
-        # 可以添加更多操作
+            
+            if not username:
+                raise ValueError("获取用户资料需要提供用户名")
+                
+            result = await fetcher.fetch_user_profile(username)
+            return [result]
+            
+        elif action == "search":
+            query = params.get("query")
+            count = params.get("count", 5)
+            
+            if not query:
+                raise ValueError("搜索需要提供查询关键词")
+                
+            results = await fetcher.search_users(query, count)
+            return results
+            
         else:
             raise ValueError(f"不支持的操作: {action}")
     

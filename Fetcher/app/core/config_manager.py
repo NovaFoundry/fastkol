@@ -27,7 +27,7 @@ class ConfigManager:
                 return
             
             # 应用启动时，从Nacos获取最新配置并更新本地文件
-            self._fetch_and_update_config()
+            # self._fetch_and_update_config()
             
             # 添加配置变更监听
             # self._setup_config_watcher()

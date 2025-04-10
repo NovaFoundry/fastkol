@@ -3,6 +3,8 @@ import logging
 import os
 import uuid
 import yaml
+import time
+import hashlib
 from fastapi import FastAPI, Depends, HTTPException, BackgroundTasks, Query
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, field_validator
@@ -15,6 +17,8 @@ from app.db.operations import init_db
 from app.fetchers.twitter import TwitterFetcher
 from app.core.config_manager import config_manager
 from app.core.nacos_client import nacos_client
+from app.celery_app import app as celery_app
+from celery.result import AsyncResult
 # 导入其他平台的爬虫类
 
 # 配置日志
@@ -155,87 +159,6 @@ class TaskStatusResponse(BaseModel):
 
 # ============= 爬虫任务处理函数 =============
 
-async def run_fetcher(task_id: str, request: FetchRequest):
-    """
-    在后台运行爬虫任务
-    
-    Args:
-        task_id: 任务ID
-        request: 爬虫请求参数
-    """
-    try:
-        tasks[task_id]["status"] = "running"
-        
-        # 根据平台选择对应的爬虫类
-        if request.platform == "twitter":
-            fetcher = TwitterFetcher()
-            
-            # 根据类型执行不同的爬虫方法
-            if request.type == "similar":
-                if not request.query:
-                    raise ValueError("查找相似用户需要提供用户名")
-                
-                # 初始化浏览器
-                await fetcher.init_browser()
-                
-                try:
-                    # 执行爬虫
-                    results = await fetcher.find_similar_users(request.query, request.count)
-                    
-                    # 应用关注者筛选
-                    if request.follows and (request.follows.min is not None or request.follows.max is not None):
-                        filtered_results = []
-                        for user in results:
-                            followers = user.get("followers_count", 0)
-                            if (request.follows.min is None or followers >= request.follows.min) and \
-                               (request.follows.max is None or followers <= request.follows.max):
-                                filtered_results.append(user)
-                        results = filtered_results
-                    
-                    # 更新任务状态和结果
-                    tasks[task_id]["status"] = "completed"
-                    tasks[task_id]["results"] = results
-                    
-                finally:
-                    # 确保浏览器关闭
-                    await fetcher.close_browser()
-                    
-            elif request.type == "search":
-                # 实现搜索功能
-                # ...
-                pass
-                
-            elif request.type == "profile":
-                if not request.query:
-                    raise ValueError("获取用户资料需要提供用户名")
-                
-                # 初始化浏览器
-                await fetcher.init_browser()
-                
-                try:
-                    # 执行爬虫
-                    result = await fetcher.fetch_user_profile(request.query)
-                    
-                    # 更新任务状态和结果
-                    tasks[task_id]["status"] = "completed"
-                    tasks[task_id]["results"] = [result]
-                    
-                finally:
-                    # 确保浏览器关闭
-                    await fetcher.close_browser()
-        
-        # 添加其他平台的处理逻辑
-        # elif request.platform == "facebook":
-        #     ...
-        
-        else:
-            raise ValueError(f"不支持的平台: {request.platform}")
-            
-    except Exception as e:
-        logger.error(f"任务 {task_id} 执行失败: {str(e)}")
-        tasks[task_id]["status"] = "failed"
-        tasks[task_id]["error"] = str(e)
-
 # ============= API 路由 =============
 
 # 基础路由
@@ -247,21 +170,55 @@ async def root():
 async def health_check():
     return {"status": "healthy"}
 
+def generate_task_id(platform: str, action: str) -> str:
+    """
+    生成基于时间、平台和操作类型的32位任务ID
+    
+    Args:
+        platform: 平台名称 (如 'twitter')
+        action: 操作类型 (如 'similar', 'search', 'profile')
+        
+    Returns:
+        32位的任务ID字符串
+    """
+    # 获取当前时间戳（精确到毫秒）
+    timestamp = int(time.time() * 1000)
+    
+    # 构建原始字符串：时间戳_平台_操作类型
+    raw_string = f"{timestamp}_{platform}_{action}"
+    
+    # 使用 MD5 生成 32 位的哈希值
+    task_id = hashlib.md5(raw_string.encode()).hexdigest()
+    
+    return task_id
+
+# # 添加 Celery 任务回调函数
+# @celery_app.task
+# def update_task_status(task_id: str, celery_result):
+#     """更新任务状态的回调函数"""
+#     if task_id in tasks:
+#         if celery_result.get("status") == "success":
+#             tasks[task_id]["status"] = "completed"
+#             tasks[task_id]["results"] = celery_result.get("result")
+#         else:
+#             tasks[task_id]["status"] = "failed"
+#             tasks[task_id]["error"] = celery_result.get("error")
+#         logger.info(f"任务 {task_id} 状态已更新: {tasks[task_id]['status']}")
+
 # 爬虫任务路由
 @app.post("/fetch", response_model=TaskResponse)
-async def fetch_data(request: FetchRequest, background_tasks: BackgroundTasks):
+async def fetch_data(request: FetchRequest):
     """
     启动爬虫任务
     
     Args:
         request: 爬虫请求参数
-        background_tasks: FastAPI 后台任务
         
     Returns:
         任务ID和状态
     """
     # 生成任务ID
-    task_id = str(uuid.uuid4())
+    task_id = generate_task_id(request.platform, request.type)
     
     # 初始化任务状态
     tasks[task_id] = {
@@ -271,13 +228,33 @@ async def fetch_data(request: FetchRequest, background_tasks: BackgroundTasks):
         "error": None
     }
     
-    # 在后台启动爬虫任务
-    background_tasks.add_task(run_fetcher, task_id, request)
+    # 准备任务数据
+    task_data = {
+        "task_id": task_id,
+        "platform": request.platform,
+        "action": request.type,
+        "params": {
+            "username": request.query,
+            "count": request.count,
+            "follows_min": request.follows.min if request.follows else None,
+            "follows_max": request.follows.max if request.follows else None
+        }
+    }
+    
+    # 将任务发送到 Celery
+    celery_task = celery_app.send_task('app.celery_app.process_task', args=[task_data])
+    logger.info(f"任务已发送, task_id: {task_id}, celery_task_id: {celery_task.id}")
+    
+    # 记录 Celery 任务 ID
+    tasks[task_id]["celery_task_id"] = celery_task.id
+    
+    # 设置任务回调
+    # celery_task.apply_async(args=[task_data], link=update_task_status.s(task_id))
     
     return TaskResponse(
         task_id=task_id,
         status="pending",
-        message="任务已创建并开始处理"
+        message="任务已创建"
     )
 
 @app.get("/task/{task_id}", response_model=TaskStatusResponse)
@@ -295,6 +272,22 @@ async def get_task_status(task_id: str):
         raise HTTPException(status_code=404, detail=f"任务 {task_id} 不存在")
     
     task = tasks[task_id]
+    
+    # 如果任务还在进行中，检查 Celery 任务状态
+    if task["status"] == "pending" and "celery_task_id" in task:
+        celery_result = AsyncResult(task["celery_task_id"])
+        if celery_result.ready():
+            if celery_result.successful():
+                result = celery_result.get()
+                if result.get("status") == "success":
+                    task["status"] = "completed"
+                    task["results"] = result.get("result")
+                else:
+                    task["status"] = "failed"
+                    task["error"] = result.get("error")
+            else:
+                task["status"] = "failed"
+                task["error"] = str(celery_result.result)
     
     return TaskStatusResponse(
         task_id=task_id,
