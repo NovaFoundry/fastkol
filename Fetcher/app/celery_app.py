@@ -3,6 +3,8 @@ import os
 import sys
 import logging
 import asyncio
+import nest_asyncio
+from typing import Tuple, List, Dict, Any
 from app.settings import settings
 from app.fetchers.twitter import TwitterFetcher
 from app.fetchers.youtube import YoutubeFetcher
@@ -33,11 +35,16 @@ app.conf.update(
     result_serializer='json',
     timezone=settings.get_config("celery", {}).get("timezone", "UTC"),
     enable_utc=settings.get_config("celery", {}).get("enable_utc", True),
+    broker_connection_retry_on_startup=True,  # 添加启动时的连接重试设置
+    # result_expires=settings.get_config("celery", {}).get("result_expires", 3600),
 )
 
 # 创建全局资源
 proxy_pool = ProxyPool()
 account_manager = AccountManager()
+
+# 允许嵌套事件循环
+nest_asyncio.apply()
 
 @app.task
 def process_task(task_data):
@@ -50,82 +57,47 @@ def process_task(task_data):
         
         logger.info(f"处理任务 {task_id}: {platform} 平台, {action} 操作")
         
-        # 运行异步任务
-        result = asyncio.run(run_fetcher(platform, action, params))
+        async def async_process():
+            """异步处理任务的内部函数"""
+            try:
+                # 运行爬虫获取结果
+                success, msg, result = await run_fetcher(platform, action, params)
+                if success:
+                    # 保存结果到数据库
+                    await save_result(task_data, result)
+                    return {"status": "success", "user_count": len(result)}
+                else:
+                    return {"status": "error", "error": msg}
+            except Exception as e:
+                logger.error(f"任务处理失败: {str(e)}")
+                return {"status": "error", "error": str(e)}
         
-        # 将结果保存到数据库
-        asyncio.run(save_result(task_data, result))
-        
-        return {"status": "success", "result": result}
+        # 使用 asyncio.run() 执行异步任务
+        return asyncio.run(async_process())
     
     except Exception as e:
-        logger.error(f"任务处理失败: {str(e)}")
+        logger.error(f"任务处理外部失败: {str(e)}")
         return {"status": "error", "error": str(e)}
-
-async def run_fetcher(platform, action, params):
+    
+async def run_fetcher(platform, action, params) -> Tuple[bool, str, List[Dict[str, Any]]]:
     """根据平台选择合适的爬虫并运行"""
     fetcher = None
     
     # 根据平台创建爬虫实例
     if platform == "twitter":
-        fetcher = TwitterFetcher(proxy_pool, account_manager)
-    elif platform == "youtube":
-        fetcher = YoutubeFetcher(proxy_pool, account_manager)
-    elif platform == "instagram":
-        fetcher = InstagramFetcher(proxy_pool, account_manager)
-    elif platform == "tiktok":
-        fetcher = TiktokFetcher(proxy_pool, account_manager)
+        fetcher = TwitterFetcher()
     else:
         raise ValueError(f"不支持的平台: {platform}")
-    
-    # 设置浏览器
-    await fetcher.setup_browser()
-    
+
     try:
         # 执行指定操作
         if action == "similar":
             username = params.get("username")
-            count = params.get("count", 5)
-            
-            if not username:
-                raise ValueError("查找相似用户需要提供用户名")
-                
-            results = await fetcher.find_similar_users(username, count)
-            
-            # 应用关注者筛选
-            follows_min = params.get("follows_min")
-            follows_max = params.get("follows_max")
-            
-            if follows_min is not None or follows_max is not None:
-                filtered_results = []
-                for user in results:
-                    followers = user.get("followers_count", 0)
-                    if (follows_min is None or followers >= follows_min) and \
-                       (follows_max is None or followers <= follows_max):
-                        filtered_results.append(user)
-                results = filtered_results
-                
-            return results
-            
-        elif action == "profile":
-            username = params.get("username")
-            
-            if not username:
-                raise ValueError("获取用户资料需要提供用户名")
-                
-            result = await fetcher.fetch_user_profile(username)
-            return [result]
-            
-        elif action == "search":
-            query = params.get("query")
-            count = params.get("count", 5)
-            
-            if not query:
-                raise ValueError("搜索需要提供查询关键词")
-                
-            results = await fetcher.search_users(query, count)
-            return results
-            
+            count = params.get("count", 200)
+            uid = params.get("uid")
+            logger.info(f"查找与 {username} 相似的用户，数量: {count}, uid: {uid}")
+            success, msg, result = await fetcher.find_similar_users(username, count, uid)
+            return (success, msg, result)
         else:
             raise ValueError(f"不支持的操作: {action}")
     

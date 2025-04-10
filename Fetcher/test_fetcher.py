@@ -35,7 +35,7 @@ async def test_fetcher(platform, action, params):
             count = params.get("count", 200)
             uid = params.get("uid")
             logger.info(f"查找与 {username} 相似的用户，数量: {count}, uid: {uid}")
-            result = await fetcher.find_similar_users(username, count, uid)
+            success, msg, result = await fetcher.find_similar_users(username, count, uid)
         elif action == "fetch_user_profile":
             username = params.get("username")
             logger.info(f"获取用户资料: {username}")

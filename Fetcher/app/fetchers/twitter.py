@@ -1,4 +1,4 @@
-from typing import List, Dict, Any
+from typing import Tuple, List, Dict, Any
 import logging
 import asyncio
 import re
@@ -245,7 +245,7 @@ class TwitterFetcher(BaseFetcher):
             self.logger.error(f"获取用户 hashtag 失败: {str(e)}")
             return []
 
-    async def find_similar_users(self, username: str, count: int = 20, uid: str = None) -> List[Dict[str, Any]]:
+    async def find_similar_users(self, username: str, count: int = 20, uid: str = None) -> Tuple[bool, str, List[Dict[str, Any]]]:
         """找到与指定用户相似的用户,包括二度关系用户
         
         Args:
@@ -254,7 +254,7 @@ class TwitterFetcher(BaseFetcher):
             uid (str, optional): 用户ID，如果提供则使用此ID查找相似用户
         
         Returns:
-            List[Dict[str, Any]]: 相似用户列表
+            Tuple[bool, str, List[Dict[str, Any]]]: 是否成功获取用户资料, msg, 相似用户列表
         """
         self.logger.info(f"查找与 {username} 相似的 Twitter 用户，数量: {count}")
         
@@ -268,7 +268,7 @@ class TwitterFetcher(BaseFetcher):
                     self.logger.info(f"成功获取用户 {username} 的 uid: {uid}")
                 else:
                     self.logger.warning(f"无法获取用户 {username} 的 uid，将使用默认 uid")
-                    return []
+                    return (False, "无法获取用户 uid", [])
 
             # 用集合来存储已处理的用户ID，用于去重
             processed_uids = set()
@@ -281,9 +281,10 @@ class TwitterFetcher(BaseFetcher):
             if len(first_level_users) >= count:
                 all_similar_users = first_level_users[:count]
                 # 获取用户的 hashtag
-                for user in all_similar_users:
-                    user["hashtags"] = await self._get_user_hashtags(user["username"], user["uid"], user["bio"])
-                return all_similar_users
+                # for user in all_similar_users:
+                #     user["hashtags"] = await self._get_user_hashtags(user["username"], user["uid"], user["bio"])
+                return (True, "success", all_similar_users)
+            
             # 添加第一层用户并记录其 UID
             for user in first_level_users:
                 if user["uid"] not in processed_uids:
@@ -316,11 +317,11 @@ class TwitterFetcher(BaseFetcher):
             #     await self._random_delay(1, 2)
             
             # 确保返回数量不超过请求数量
-            return all_similar_users[:count]
+            return (True, all_similar_users[:count])
             
         except Exception as e:
             self.logger.error(f"查找相似用户失败: {str(e)}")
-            return []
+            return (False, str(e), [])
 
     async def _extract_email_from_text(self, text: str) -> str:
         """Extract email address from text if present

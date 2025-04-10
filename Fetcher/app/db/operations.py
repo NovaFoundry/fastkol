@@ -20,20 +20,27 @@ async def init_db():
 
 async def save_result(task_data, result):
     """保存爬取结果到数据库"""
-    try:
-        async with SessionLocal() as session:
-            fetch_result = FetchResult(
-                task_id=task_data.get('task_id', ''),
-                platform=task_data.get('platform', ''),
-                action=task_data.get('action', ''),
-                params=task_data.get('params', {}),
-                result=result
-            )
-            session.add(fetch_result)
-            await session.commit()
-            logger.info(f"结果已保存到数据库，任务ID: {task_data.get('task_id', '')}")
-    except Exception as e:
-        logger.error(f"保存结果到数据库失败: {str(e)}")
+    max_retries = 3
+    for attempt in range(max_retries):
+        try:
+            async with SessionLocal() as session:
+                async with session.begin():  # 使用事务上下文管理器
+                    fetch_result = FetchResult(
+                        task_id=task_data.get('task_id', ''),
+                        platform=task_data.get('platform', ''),
+                        action=task_data.get('action', ''),
+                        params=task_data.get('params', {}),
+                        result=result
+                    )
+                    session.add(fetch_result)
+                    await session.commit()
+                    logger.info(f"结果已保存到数据库，任务ID: {task_data.get('task_id', '')}")
+                    return  # 成功保存后退出函数
+        except Exception as e:
+            logger.warning(f"保存结果到数据库失败，重试 {attempt + 1}/{max_retries}: {str(e)}")
+            if attempt == max_retries - 1:
+                logger.error(f"最终保存结果到数据库失败: {str(e)}")
+                raise  # 如果重试仍然失败，抛出异常
 
 async def get_all_proxies():
     """获取所有活跃代理"""
