@@ -29,11 +29,6 @@ async def test_fetcher(platform, action, params):
         else:
             raise ValueError(f"不支持的平台: {platform}")
         
-        logger.info("初始化浏览器...")
-        # 设置浏览器
-        await fetcher.init_browser()
-        logger.info("浏览器初始化完成")
-        
         # 执行指定操作
         if action == "find_similar_users":
             username = params.get("username")

@@ -11,6 +11,8 @@ import urllib.parse
 import aiohttp
 import os
 
+from app.settings import settings
+
 logger = logging.getLogger(__name__)
 
 class TwitterFetcher(BaseFetcher):
@@ -18,50 +20,34 @@ class TwitterFetcher(BaseFetcher):
         super().__init__()
         self.platform = "twitter"
         # 用户代理列表，模拟不同浏览器和设备
-        self.user_agents = [
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36",
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1.1 Safari/605.1.15",
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:89.0) Gecko/20100101 Firefox/89.0",
-            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/92.0.4515.107 Safari/537.36",
-            "Mozilla/5.0 (iPhone; CPU iPhone OS 14_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Mobile/15E148 Safari/604.1"
-        ]
-        # 从配置文件加载 API 配置
+        self.user_agent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1.1 Safari/605.1.15"
+        # 加载 API 配置
         self._load_config()
         self.page = None
         self.browser = None
         self.logger = logger  # Ensure logger is properly set
     
     def _load_config(self):
-        """从配置文件加载 Twitter API 配置"""
+        """加载 Twitter API 配置"""
         try:
-            import yaml
-            config_path = 'config/config.yaml'
-            self.logger.info(f"尝试加载配置文件: {config_path}")
-            self.logger.info(f"当前工作目录: {os.getcwd()}")
-            
-            with open(config_path, 'r', encoding='utf-8') as f:
-                config = yaml.safe_load(f)
-
             # 加载代理配置
-            proxy_config = config.get('proxy', {})
+            proxy_config = settings.get_config('proxy', {})
             self.proxy_enabled = proxy_config.get('enabled', False)
             self.proxy_url = proxy_config.get('url', '')
             if self.proxy_enabled and self.proxy_url:
                 self.logger.info(f"代理已启用: {self.proxy_url}")
             
             # 获取 Twitter API 配置
-            twitter_config = config.get('twitter', {})
+            twitter_config = settings.get_config('twitter', {})
             self.api_endpoints = twitter_config.get('endpoints', {})
             self.auth_params = twitter_config.get('auth_params', {})
             self.logger.info("成功加载 Twitter配置")
         except Exception as e:
-            self.logger.error(f"加载配置文件失败: {str(e)}")
+            self.logger.error(f"加载配置失败: {str(e)}")
             import traceback
             self.logger.error(traceback.format_exc())
             # 设置默认值
-            self.api_endpoints = {
-                "similar_users": "https://x.com/i/api/graphql/WIeRrT1lB03IHxrLKXcY3g/ConnectTabTimeline"
-            }
+            self.api_endpoints = {}
             self.proxy_enabled = False
             self.proxy_url = ''
     
@@ -69,68 +55,6 @@ class TwitterFetcher(BaseFetcher):
         """随机延迟，模拟人类行为"""
         delay = random.uniform(min_seconds, max_seconds)
         await asyncio.sleep(delay)
-    
-    async def _simulate_human_scroll(self, min_scrolls=2, max_scrolls=5):
-        """模拟人类滚动行为"""
-        num_scrolls = random.randint(min_scrolls, max_scrolls)
-        for i in range(num_scrolls):
-            # 随机滚动距离
-            scroll_distance = random.randint(300, 700)
-            await self.page.evaluate(f"window.scrollBy(0, {scroll_distance})")
-            # 随机滚动停顿
-            await self._random_delay(0.5, 2)
-    
-    async def _simulate_mouse_movement(self):
-        """模拟鼠标随机移动"""
-        viewport_size = await self.page.evaluate("() => { return {width: window.innerWidth, height: window.innerHeight} }")
-        x = random.randint(0, viewport_size['width'])
-        y = random.randint(0, viewport_size['height'])
-        await self.page.mouse.move(x, y)
-    
-    async def _rotate_user_agent(self):
-        """轮换用户代理"""
-        user_agent = random.choice(self.user_agents)
-        await self.page.evaluate(f"() => {{ Object.defineProperty(navigator, 'userAgent', {{ get: () => '{user_agent}' }}) }}")
-        self.logger.debug(f"设置用户代理: {user_agent}")
-    
-    async def _bypass_cloudflare(self):
-        """尝试绕过 Cloudflare 检测"""
-        # 等待页面加载完成
-        await self.page.wait_for_load_state('networkidle')
-        
-        # 检查是否存在 Cloudflare 挑战
-        if await self.page.query_selector('div.cf-browser-verification') is not None:
-            self.logger.info("检测到 Cloudflare 挑战，等待解决...")
-            # 等待挑战完成
-            await self.page.wait_for_selector('div.cf-browser-verification', state='detached', timeout=30000)
-            await self.page.wait_for_load_state('networkidle')
-    
-    async def _setup_browser_session(self):
-        """设置浏览器会话，添加反检测措施"""
-        # 轮换用户代理
-        await self._rotate_user_agent()
-        
-        # 禁用 WebDriver
-        await self.page.evaluate("""() => {
-            Object.defineProperty(navigator, 'webdriver', { get: () => false });
-            delete navigator.__proto__.webdriver;
-        }""")
-        
-        # 添加随机指纹信息
-        await self.page.evaluate("""() => {
-            // 模拟随机的屏幕分辨率
-            Object.defineProperty(window.screen, 'width', { get: () => 1920 });
-            Object.defineProperty(window.screen, 'height', { get: () => 1080 });
-            
-            // 模拟随机的插件
-            Object.defineProperty(navigator, 'plugins', { 
-                get: () => [
-                    { name: 'Chrome PDF Plugin' },
-                    { name: 'Chrome PDF Viewer' },
-                    { name: 'Native Client' }
-                ]
-            });
-        }""")
     
     async def fetch_user_profile(self, username: str) -> Dict[str, Any]:
         """获取用户主页信息"""
@@ -158,12 +82,11 @@ class TwitterFetcher(BaseFetcher):
                 "responsive_web_graphql_timeline_navigation_enabled":True
             }
             # 准备请求头
-            user_agent = random.choice(self.user_agents)
             headers = {
                 "authorization": self.auth_params.get('auth_token'),
                 "x-csrf-token": self.auth_params.get('csrf_token'),
                 "cookie": self.auth_params.get('cookie'),
-                "user-agent": user_agent,
+                "user-agent": self.user_agent,
                 "content-type": "application/json",
                 "x-twitter-active-user": "yes",
                 "x-twitter-client-language": "zh-cn"
@@ -431,12 +354,11 @@ class TwitterFetcher(BaseFetcher):
         """
         try:
             # 准备 API 请求头
-            user_agent = random.choice(self.user_agents)
             headers = {
                 "authorization": self.auth_params.get('auth_token'),
                 "x-csrf-token": self.auth_params.get('csrf_token'),
                 "cookie": self.auth_params.get('cookie'),
-                "user-agent": user_agent,
+                "user-agent": self.user_agent,
                 "content-type": "application/json",
                 "x-twitter-active-user": "yes",
                 "x-twitter-client-language": "zh-cn"
@@ -556,141 +478,6 @@ class TwitterFetcher(BaseFetcher):
             self.logger.error(f"获取相似用户失败: {str(e)}")
             return []
     
-    async def login(self, email, password):
-        """
-        登录 Twitter 账号
-        
-        Args:
-            email (str): Twitter 账号邮箱
-            password (str): Twitter 账号密码
-            
-        Returns:
-            bool: 登录是否成功
-        """
-        try:
-            # 设置浏览器会话
-            await self._setup_browser_session()
-            
-            # 导航到 Twitter 登录页面
-            await self.page.goto('https://x.com/i/flow/login', wait_until='networkidle')
-            
-            # 尝试绕过 Cloudflare
-            await self._bypass_cloudflare()
-            
-            # 随机延迟
-            await self._random_delay(2, 4)
-            
-            # 等待邮箱输入框出现并输入邮箱
-            email_input = await self.page.wait_for_selector('input[autocomplete="username"]')
-            
-            # 模拟人类输入 - 逐个字符输入并有随机延迟
-            for char in email:
-                await email_input.type(char, delay=random.uniform(50, 150))
-                await asyncio.sleep(random.uniform(0.01, 0.05))
-            
-            # 随机延迟
-            await self._random_delay(1, 2)
-            
-            # 点击"下一步"按钮 - 使用更精确的选择器
-            next_button = await self.page.wait_for_selector('button[role="button"] div span span:has-text("下一步")')
-            
-            # 模拟鼠标移动到按钮上
-            await self._simulate_mouse_movement()
-            await next_button.click()
-            
-            # 随机延迟
-            await self._random_delay(2, 3)
-            
-            # 等待密码输入框出现并输入密码
-            password_input = await self.page.wait_for_selector('input[type="password"]', timeout=5000)
-            
-            # 模拟人类输入密码 - 逐个字符输入并有随机延迟
-            for char in password:
-                await password_input.type(char, delay=random.uniform(50, 150))
-                await asyncio.sleep(random.uniform(0.01, 0.05))
-            
-            # 随机延迟
-            await self._random_delay(1, 2)
-            
-            # 点击"登录"按钮
-            login_button = await self.page.wait_for_selector('div[role="button"]:has-text("登录")')
-            
-            # 模拟鼠标移动到按钮上
-            await self._simulate_mouse_movement()
-            await login_button.click()
-            
-            # 等待页面加载完成，检查是否登录成功
-            await self.page.wait_for_load_state('networkidle')
-            
-            # 检查是否存在主页元素，判断登录是否成功
-            home_timeline = await self.page.query_selector('div[aria-label="主页时间线"]')
-            
-            if home_timeline:
-                self.logger.info("Twitter 登录成功")
-                # 登录成功后随机浏览一下，更像人类行为
-                await self._simulate_human_scroll(3, 6)
-                return True
-            else:
-                self.logger.error("Twitter 登录失败")
-                return False
-            
-        except Exception as e:
-            self.logger.error(f"Twitter 登录过程中出错: {str(e)}")
-            return False
-    
-    async def handle_captcha(self):
-        """处理可能出现的验证码"""
-        # 检查是否存在验证码
-        captcha_selector = await self.page.query_selector('iframe[title*="recaptcha"]')
-        if captcha_selector:
-            self.logger.warning("检测到验证码，尝试处理...")
-            # 这里可以集成验证码解决服务
-            # 例如: 2Captcha, Anti-Captcha 等
-            # 或者提醒用户手动处理
-            self.logger.warning("需要手动处理验证码")
-            # 等待验证码消失
-            await self.page.wait_for_selector('iframe[title*="recaptcha"]', state='detached', timeout=60000)
-            return True
-        return False
-
-    async def init_browser(self):
-        """初始化浏览器"""
-        from playwright.async_api import async_playwright
-        
-        self.logger.info("初始化浏览器...")
-        playwright = await async_playwright().start()
-        
-        # 设置浏览器选项 - 将 headless 设置为 False 使浏览器可见
-        browser_options = {
-            "headless": True,  # 改为可见模式
-        }
-        
-        # 如果启用了代理，添加代理配置
-        if self.proxy_enabled and self.proxy_url:
-            browser_options["proxy"] = {
-                "server": self.proxy_url
-            }
-        
-        # 启动浏览器
-        self.browser = await playwright.chromium.launch(**browser_options)
-        
-        # 创建新页面
-        self.page = await self.browser.new_page()
-        
-        # 设置页面视口大小
-        await self.page.set_viewport_size({"width": 1280, "height": 800})
-        
-        self.logger.info("浏览器初始化完成")
-    
-    async def close_browser(self):
-        """关闭浏览器"""
-        if self.browser:
-            self.logger.info("关闭浏览器...")
-            await self.browser.close()
-            self.browser = None
-            self.page = None
-            self.logger.info("浏览器已关闭")
-    
     async def _extract_tweet_data(self, result: Dict[str, Any], username: str) -> Dict[str, Any]:
         """Extract tweet data from a result object
         
@@ -742,12 +529,11 @@ class TwitterFetcher(BaseFetcher):
         self.logger.info(f"获取用户 {username} 的推文列表，cursor: {cursor}")
         try:
             # 准备 API 请求头
-            user_agent = random.choice(self.user_agents)
             headers = {
                 "authorization": self.auth_params.get('auth_token'),
                 "x-csrf-token": self.auth_params.get('csrf_token'),
                 "cookie": self.auth_params.get('cookie'),
-                "user-agent": user_agent,
+                "user-agent": self.user_agent,
                 "content-type": "application/json",
                 "x-twitter-active-user": "yes",
                 "x-twitter-client-language": "zh-cn"
