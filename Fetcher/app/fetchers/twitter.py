@@ -317,7 +317,7 @@ class TwitterFetcher(BaseFetcher):
             #     await self._random_delay(1, 2)
             
             # 确保返回数量不超过请求数量
-            return (True, all_similar_users[:count])
+            return (True, "success", all_similar_users[:count])
             
         except Exception as e:
             self.logger.error(f"查找相似用户失败: {str(e)}")

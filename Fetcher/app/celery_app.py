@@ -12,7 +12,7 @@ from app.fetchers.instagram import InstagramFetcher
 from app.fetchers.tiktok import TiktokFetcher
 from app.proxy.pool import ProxyPool
 from app.account_pool.manager import AccountManager
-from app.db.operations import save_result
+from app.db.operations import update_fetch_task
 
 # 添加项目根目录到 Python 路径
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -64,15 +64,18 @@ def process_task(task_data):
                 success, msg, result = await run_fetcher(platform, action, params)
                 if success:
                     # 保存结果到数据库
-                    await save_result(task_data, result)
+                    await update_fetch_task(task_id, "completed", result)
                     return {"status": "success", "user_count": len(result)}
                 else:
-                    return {"status": "error", "error": msg}
+                    logger.error(f"任务处理失败: {msg}")
+                    await update_fetch_task(task_id, "failed", result, msg)
+                    return {"status": "failed", "error": msg}
             except Exception as e:
                 logger.error(f"任务处理失败: {str(e)}")
-                return {"status": "error", "error": str(e)}
+                await update_fetch_task(task_id, "failed", None, str(e))
+                return {"status": "failed", "error": str(e)}
         
-        # 使用 asyncio.run() 执行异步任务
+        # 使用 asyncio.run() 执行异步任务       
         return asyncio.run(async_process())
     
     except Exception as e:

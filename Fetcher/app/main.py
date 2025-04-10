@@ -13,12 +13,14 @@ from contextlib import asynccontextmanager
 
 from app.settings import settings
 from app.rabbitmq.consumer import RabbitMQConsumer
-from app.db.operations import init_db
+from app.db.operations import init_db, update_fetch_task, SessionLocal, get_fetch_task
 from app.fetchers.twitter import TwitterFetcher
 from app.core.config_manager import config_manager
 from app.core.nacos_client import nacos_client
 from app.celery_app import app as celery_app
 from celery.result import AsyncResult
+from app.db.operations import create_fetch_task
+from sqlalchemy.future import select
 # 导入其他平台的爬虫类
 
 # 配置日志
@@ -192,19 +194,6 @@ def generate_task_id(platform: str, action: str) -> str:
     
     return task_id
 
-# # 添加 Celery 任务回调函数
-# @celery_app.task
-# def update_task_status(task_id: str, celery_result):
-#     """更新任务状态的回调函数"""
-#     if task_id in tasks:
-#         if celery_result.get("status") == "success":
-#             tasks[task_id]["status"] = "completed"
-#             tasks[task_id]["results"] = celery_result.get("result")
-#         else:
-#             tasks[task_id]["status"] = "failed"
-#             tasks[task_id]["error"] = celery_result.get("error")
-#         logger.info(f"任务 {task_id} 状态已更新: {tasks[task_id]['status']}")
-
 # 爬虫任务路由
 @app.post("/fetch", response_model=TaskResponse)
 async def fetch_data(request: FetchRequest):
@@ -241,16 +230,12 @@ async def fetch_data(request: FetchRequest):
         }
     }
     
+    await create_fetch_task(task_data, "pending")
+
     # 将任务发送到 Celery
     celery_task = celery_app.send_task('app.celery_app.process_task', args=[task_data])
     logger.info(f"任务已发送, task_id: {task_id}, celery_task_id: {celery_task.id}")
-    
-    # 记录 Celery 任务 ID
-    tasks[task_id]["celery_task_id"] = celery_task.id
-    
-    # 设置任务回调
-    # celery_task.apply_async(args=[task_data], link=update_task_status.s(task_id))
-    
+
     return TaskResponse(
         task_id=task_id,
         status="pending",
@@ -267,33 +252,24 @@ async def get_task_status(task_id: str):
         
     Returns:
         任务状态和结果
+        
+    Raises:
+        HTTPException: 当任务不存在时返回404错误
     """
-    if task_id not in tasks:
-        raise HTTPException(status_code=404, detail=f"任务 {task_id} 不存在")
+    # 从数据库获取任务信息
+    task = await get_fetch_task(task_id)
     
-    task = tasks[task_id]
-    
-    # 如果任务还在进行中，检查 Celery 任务状态
-    if task["status"] == "pending" and "celery_task_id" in task:
-        celery_result = AsyncResult(task["celery_task_id"])
-        if celery_result.ready():
-            if celery_result.successful():
-                result = celery_result.get()
-                if result.get("status") == "success":
-                    task["status"] = "completed"
-                    task["results"] = result.get("result")
-                else:
-                    task["status"] = "failed"
-                    task["error"] = result.get("error")
-            else:
-                task["status"] = "failed"
-                task["error"] = str(celery_result.result)
+    if not task:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Task with ID {task_id} not found"
+        )
     
     return TaskStatusResponse(
         task_id=task_id,
-        status=task["status"],
-        results=task.get("results"),
-        error=task.get("error")
+        status=task.status,
+        results=task.result,
+        error=task.error
     )
 
 if __name__ == "__main__":
