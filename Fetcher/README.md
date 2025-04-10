@@ -22,14 +22,21 @@ cd docker/environments/dev
 docker compose up -d
 ```
 
-### 2. 安装依赖
+### 2. 创建虚拟环境
+
+```bash
+python3 -m venv fetcher-env
+source fetcher-env/bin/activate
+```
+
+### 3. 安装依赖
 
 ```bash
 # 安装所有必要的依赖包
 pip install -r requirements.txt
 ```
 
-### 3. 启动 Api 服务
+### 4. 启动 Api 服务
 
 ```bash
 # 使用 uvicorn 启动服务(开发环境)
@@ -39,12 +46,12 @@ uvicorn app.main:app --host 0.0.0.0 --port 18102 --reload
 gunicorn -w 4 -b 0.0.0.0:18102 app.main:app
 ```
 
-### 4. 启动后台任务
+### 5. 启动后台任务
 ```bash
 celery -A app.celery_app worker --loglevel=info
 ```
 
-### 5. 验证服务
+### 6. 验证服务
 
 - API 文档：`http://localhost:18102/docs`
 - 健康检查：`http://localhost:18102/health`
