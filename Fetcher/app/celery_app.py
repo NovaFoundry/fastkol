@@ -36,7 +36,7 @@ app.conf.update(
     timezone=settings.get_config("celery", {}).get("timezone", "UTC"),
     enable_utc=settings.get_config("celery", {}).get("enable_utc", True),
     broker_connection_retry_on_startup=True,  # 添加启动时的连接重试设置
-    # result_expires=settings.get_config("celery", {}).get("result_expires", 3600),
+    result_expires=settings.get_config("celery", {}).get("result_expires", 3600),
 )
 
 # 创建全局资源

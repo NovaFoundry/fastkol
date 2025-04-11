@@ -53,16 +53,6 @@ async def lifespan(app: FastAPI):
         logger.info("Initializing database connection...")
         await init_db()
         
-        # # 启动RabbitMQ消费者
-        # logger.info("Starting RabbitMQ consumer...")
-        # consumer = RabbitMQConsumer(
-        #     url=settings.get_config("rabbitmq", {}).get("url", ""),
-        #     queue=settings.get_config("rabbitmq", {}).get("queue", "")
-        # )
-        
-        # # 启动消费者但不等待它完成
-        # asyncio.create_task(consumer.start_consuming())
-        
         yield
         
     except Exception as e:
@@ -75,10 +65,6 @@ async def lifespan(app: FastAPI):
         # 注销 Nacos 服务
         logger.info("Deregistering service from Nacos...")
         nacos_client.deregister_service()
-        
-        # 关闭 RabbitMQ 消费者
-        if 'consumer' in locals():
-            await consumer.close()
 
 # 创建 FastAPI 应用
 app = FastAPI(
