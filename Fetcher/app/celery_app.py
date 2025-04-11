@@ -46,22 +46,21 @@ account_manager = AccountManager()
 # 允许嵌套事件循环
 nest_asyncio.apply()
 
-@app.task
-def process_task(task_data):
-    """处理爬虫任务"""
+@app.task(name='app.celery_app.process_similar_task')
+def process_similar_task(task_data):
+    """处理相似用户查找任务"""
     try:
         task_id = task_data.get('task_id')
         platform = task_data.get('platform')
-        action = task_data.get('action')
         params = task_data.get('params', {})
         
-        logger.info(f"处理任务 {task_id}: {platform} 平台, {action} 操作")
+        logger.info(f"处理相似用户查找任务 {task_id}: {platform} 平台")
         
         async def async_process():
             """异步处理任务的内部函数"""
             try:
                 # 运行爬虫获取结果
-                success, msg, result = await run_fetcher(platform, action, params)
+                success, msg, result = await run_similar_fetcher(platform, params)
                 if success:
                     # 保存结果到数据库
                     await update_fetch_task(task_id, "completed", result)
@@ -81,9 +80,44 @@ def process_task(task_data):
     except Exception as e:
         logger.error(f"任务处理外部失败: {str(e)}")
         return {"status": "error", "error": str(e)}
+
+@app.task(name='app.celery_app.process_search_task')
+def process_search_task(task_data):
+    """处理用户搜索任务"""
+    try:
+        task_id = task_data.get('task_id')
+        platform = task_data.get('platform')
+        params = task_data.get('params', {})
+        
+        logger.info(f"处理用户搜索任务 {task_id}: {platform} 平台")
+        
+        async def async_process():
+            """异步处理任务的内部函数"""
+            try:
+                # 运行爬虫获取结果
+                success, msg, result = await run_search_fetcher(platform, params)
+                if success:
+                    # 保存结果到数据库
+                    await update_fetch_task(task_id, "completed", result)
+                    return {"status": "success", "user_count": len(result)}
+                else:
+                    logger.error(f"任务处理失败: {msg}")
+                    await update_fetch_task(task_id, "failed", result, msg)
+                    return {"status": "failed", "error": msg}
+            except Exception as e:
+                logger.error(f"任务处理失败: {str(e)}")
+                await update_fetch_task(task_id, "failed", None, str(e))
+                return {"status": "failed", "error": str(e)}
+        
+        # 使用 asyncio.run() 执行异步任务       
+        return asyncio.run(async_process())
     
-async def run_fetcher(platform, action, params) -> Tuple[bool, str, List[Dict[str, Any]]]:
-    """根据平台选择合适的爬虫并运行"""
+    except Exception as e:
+        logger.error(f"任务处理外部失败: {str(e)}")
+        return {"status": "error", "error": str(e)}
+
+async def run_similar_fetcher(platform, params) -> Tuple[bool, str, List[Dict[str, Any]]]:
+    """根据平台选择合适的爬虫并运行相似用户查找"""
     fetcher = None
     
     # 根据平台创建爬虫实例
@@ -93,23 +127,32 @@ async def run_fetcher(platform, action, params) -> Tuple[bool, str, List[Dict[st
         raise ValueError(f"不支持的平台: {platform}")
 
     try:
-        # 执行指定操作
-        if action == "similar":
-            username = params.get("username")
-            count = params.get("count", 200)
-            uid = params.get("uid")
-            logger.info(f"查找与 {username} 相似的用户，数量: {count}, uid: {uid}")
-            success, msg, result = await fetcher.find_similar_users(username, count, uid)
-            return (success, msg, result)
-        elif action == "search":
-            query = params.get("query")
-            count = params.get("count", 200)
-            logger.info(f"使用query: {query} 搜索用户, 数量: {count}")
-            success, msg, result = await fetcher.find_users_by_search(query, count)
-            return (success, msg, result)
-        else:
-            raise ValueError(f"不支持的操作: {action}")
+        username = params.get("username")
+        count = params.get("count", 200)
+        uid = params.get("uid")
+        logger.info(f"查找与 {username} 相似的用户，数量: {count}, uid: {uid}")
+        success, msg, result = await fetcher.find_similar_users(username, count, uid)
+        return (success, msg, result)
+    finally:
+        # 清理资源
+        await fetcher.cleanup()
+
+async def run_search_fetcher(platform, params) -> Tuple[bool, str, List[Dict[str, Any]]]:
+    """根据平台选择合适的爬虫并运行用户搜索"""
+    fetcher = None
     
+    # 根据平台创建爬虫实例
+    if platform == "twitter":
+        fetcher = TwitterFetcher()
+    else:
+        raise ValueError(f"不支持的平台: {platform}")
+
+    try:
+        query = params.get("query")
+        count = params.get("count", 200)
+        logger.info(f"使用query: {query} 搜索用户, 数量: {count}")
+        success, msg, result = await fetcher.find_users_by_search(query, count)
+        return (success, msg, result)
     finally:
         # 清理资源
         await fetcher.cleanup()

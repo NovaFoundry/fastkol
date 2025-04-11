@@ -12,7 +12,6 @@ from typing import Dict, Any, List, Optional, Union
 from contextlib import asynccontextmanager
 
 from app.settings import settings
-from app.rabbitmq.consumer import RabbitMQConsumer
 from app.db.operations import init_db, update_fetch_task, SessionLocal, get_fetch_task
 from app.fetchers.twitter import TwitterFetcher
 from app.core.config_manager import config_manager
@@ -99,12 +98,12 @@ class FollowsFilter(BaseModel):
             raise ValueError('关注者数量不能为负数')
         return v
 
-class FetchRequest(BaseModel):
+class FetchSimilarRequest(BaseModel):
     """爬虫请求模型"""
     platform: str = Field(..., description="平台名称，例如 'twitter'")
-    type: str = Field(..., description="爬虫类型，例如 'similar' 或 'search'")
-    query: Optional[str] = Field(None, description="搜索查询或用户名")
-    count: int = Field(10, description="返回结果数量")
+    username: str = Field(..., description="用户名")
+    uid: Optional[str] = Field(None, description="用户ID")
+    count: int = Field(20, description="返回结果数量")
     follows: Optional[FollowsFilter] = Field(None, description="关注者数量筛选")
     
     @field_validator('platform')
@@ -115,12 +114,28 @@ class FetchRequest(BaseModel):
             raise ValueError(f'不支持的平台: {v}. 支持的平台: {", ".join(valid_platforms)}')
         return v.lower()
     
-    @field_validator('type')
+    @field_validator('count')
     @classmethod
-    def validate_type(cls, v):
-        valid_types = ['similar', 'search', 'profile']
-        if v.lower() not in valid_types:
-            raise ValueError(f'不支持的类型: {v}. 支持的类型: {", ".join(valid_types)}')
+    def validate_count(cls, v):
+        if v <= 0:
+            raise ValueError('count 必须大于 0')
+        if v > 100:
+            raise ValueError('count 不能超过 100')
+        return v
+    
+class FetchSearchRequest(BaseModel):
+    """爬虫请求模型"""
+    platform: str = Field(..., description="平台名称，例如 'twitter'")
+    query: str = Field(..., description="搜索关键词")
+    count: int = Field(20, description="返回结果数量")
+    follows: Optional[FollowsFilter] = Field(None, description="关注者数量筛选")
+    
+    @field_validator('platform')
+    @classmethod
+    def validate_platform(cls, v):
+        valid_platforms = ['twitter', 'facebook', 'instagram']
+        if v.lower() not in valid_platforms:
+            raise ValueError(f'不支持的平台: {v}. 支持的平台: {", ".join(valid_platforms)}')
         return v.lower()
     
     @field_validator('count')
@@ -181,10 +196,10 @@ def generate_task_id(platform: str, action: str) -> str:
     return task_id
 
 # 爬虫任务路由
-@app.post("/fetch", response_model=TaskResponse)
-async def fetch_data(request: FetchRequest):
+@app.post("/fetch/similar", response_model=TaskResponse)
+async def fetch_similar(request: FetchSimilarRequest):
     """
-    启动爬虫任务
+    启动相似用户查找任务
     
     Args:
         request: 爬虫请求参数
@@ -193,7 +208,7 @@ async def fetch_data(request: FetchRequest):
         任务ID和状态
     """
     # 生成任务ID
-    task_id = generate_task_id(request.platform, request.type)
+    task_id = generate_task_id(request.platform, "similar")
     
     # 初始化任务状态
     tasks[task_id] = {
@@ -207,9 +222,10 @@ async def fetch_data(request: FetchRequest):
     task_data = {
         "task_id": task_id,
         "platform": request.platform,
-        "action": request.type,
+        "action": "similar",
         "params": {
-            "username": request.query,
+            "username": request.username,
+            "uid": request.uid,
             "count": request.count,
             "follows_min": request.follows.min if request.follows else None,
             "follows_max": request.follows.max if request.follows else None
@@ -218,9 +234,56 @@ async def fetch_data(request: FetchRequest):
     
     await create_fetch_task(task_data, "pending")
 
-    # 将任务发送到 Celery
-    celery_task = celery_app.send_task('app.celery_app.process_task', args=[task_data])
-    logger.info(f"任务已发送, task_id: {task_id}, celery_task_id: {celery_task.id}")
+    # 将任务发送到专门的 Celery 任务
+    celery_task = celery_app.send_task('app.celery_app.process_similar_task', args=[task_data])
+    logger.info(f"{request.platform} 平台 similar 任务已发送, task_id: {task_id}, celery_task_id: {celery_task.id}")
+
+    return TaskResponse(
+        task_id=task_id,
+        status="pending",
+        message="任务已创建"
+    )
+
+@app.post("/fetch/search", response_model=TaskResponse)
+async def fetch_search(request: FetchSearchRequest):
+    """
+    启动用户搜索任务
+    
+    Args:
+        request: 爬虫请求参数
+        
+    Returns:
+        任务ID和状态
+    """
+    # 生成任务ID
+    task_id = generate_task_id(request.platform, "search")
+    
+    # 初始化任务状态
+    tasks[task_id] = {
+        "status": "pending",
+        "request": request.dict(),
+        "results": None,
+        "error": None
+    }
+    
+    # 准备任务数据
+    task_data = {
+        "task_id": task_id,
+        "platform": request.platform,
+        "action": "search",
+        "params": {
+            "query": request.query,
+            "count": request.count,
+            "follows_min": request.follows.min if request.follows else None,
+            "follows_max": request.follows.max if request.follows else None
+        }
+    }
+    
+    await create_fetch_task(task_data, "pending")
+
+    # 将任务发送到专门的 Celery 任务
+    celery_task = celery_app.send_task('app.celery_app.process_search_task', args=[task_data])
+    logger.info(f"{request.platform} 平台 search 任务已发送, task_id: {task_id}, celery_task_id: {celery_task.id}")
 
     return TaskResponse(
         task_id=task_id,
