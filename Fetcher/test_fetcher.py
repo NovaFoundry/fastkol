@@ -36,6 +36,11 @@ async def test_fetcher(platform, action, params):
             uid = params.get("uid")
             logger.info(f"查找与 {username} 相似的用户，数量: {count}, uid: {uid}")
             success, msg, result = await fetcher.find_similar_users(username, count, uid)
+        elif action == "find_users_by_search":
+            query = params.get("query")
+            count = params.get("count", 20)
+            logger.info(f"搜索用户: {query}, 数量: {count}")
+            _, _,result = await fetcher.find_users_by_search(query, count)
         elif action == "fetch_user_profile":
             username = params.get("username")
             logger.info(f"获取用户资料: {username}")
@@ -74,9 +79,10 @@ async def test_fetcher(platform, action, params):
 if __name__ == "__main__":
     # 示例: 测试 Twitter 爬虫
     platform = "twitter"
-    action = "find_similar_users"  # 修改为测试获取用户推文
+    action = "find_users_by_search"  # 修改为测试搜索用户
     params = {
-        "username": "deedydas",  # 替换为实际的 Twitter 账号
+        "query": "关税",  # 搜索关键词
+        "count": 200  # 要获取的用户数量
     }
     
     logger.info(f"开始测试: 平台={platform}, 操作={action}, 参数={params}")

@@ -275,7 +275,7 @@ class TwitterFetcher(BaseFetcher):
             all_similar_users = []
             
             # 步骤1: 获取第一层相似用户
-            first_level_users = await self._fetch_similar_users_by_uid(uid, count)
+            first_level_users = await self._find_similar_users_by_uid(uid)
             self.logger.info(f"获取到第一层相似用户: {len(first_level_users)} 个")
 
             if len(first_level_users) >= count:
@@ -298,7 +298,7 @@ class TwitterFetcher(BaseFetcher):
             for first_level_user in first_level_users[:20]:
                 if first_level_user["uid"]:
                     # 顺序请求每个用户的相似用户
-                    users = await self._fetch_similar_users_by_uid(first_level_user["uid"], 20)
+                    users = await self._find_similar_users_by_uid(first_level_user["uid"])
                     self.logger.info(f"获取到{first_level_user['username']}第二层相似用户: {len(users)} 个")
                     if isinstance(users, list):  # 确保结果是有效的
                         second_level_users.extend(users)
@@ -343,7 +343,7 @@ class TwitterFetcher(BaseFetcher):
             return match.group(0)
         return ""
 
-    async def _fetch_similar_users_by_uid(self, uid: str, count: int) -> List[Dict[str, Any]]:
+    async def _find_similar_users_by_uid(self, uid: str) -> List[Dict[str, Any]]:
         """通过用户ID获取相似用户
         
         Args:
@@ -367,7 +367,7 @@ class TwitterFetcher(BaseFetcher):
             
             # 准备请求参数
             variables = {
-                "count": count,
+                "count": 20,
                 "context": json.dumps({"contextualUserId": uid})
             }
             
@@ -690,30 +690,223 @@ class TwitterFetcher(BaseFetcher):
             self.logger.error(traceback.format_exc())
             return []
 
-# def search_tweets(query: str, limit: int = 10, config: dict = None):
-#     """
-#     搜索 Twitter 上的推文
-    
-#     Args:
-#         query: 搜索查询
-#         limit: 返回结果数量限制
-#         config: Twitter API 配置
+    async def find_users_by_search(self, query: str, count: int = 20) -> Tuple[bool, str, List[Dict[str, Any]]]:
+        """搜索用户
         
-#     Returns:
-#         搜索结果列表
-#     """
-#     # 使用传入的配置或默认配置
-#     if config is None:
-#         # 使用默认配置
-#         # 现有代码...
-#     else:
-#         # 使用传入的配置
-#         api_key = config.get("api_key")
-#         api_secret = config.get("api_secret")
-#         access_token = config.get("access_token")
-#         access_token_secret = config.get("access_token_secret")
-    
-#     # 现有的 Twitter API 调用代码...
-    
-#     # 返回结果
-#     return results 
+        Args:
+            query (str): 搜索关键词
+            count (int): 要获取的用户数量
+            
+        Returns:
+            Tuple[bool, str, List[Dict[str, Any]]]: 成功状态，msg，用户列表
+        """
+        self.logger.info(f"搜索用户: {query}, 数量: {count}")
+        
+        try:
+            # 存储所有获取的用户
+            all_users = []
+            # 用于去重的用户ID集合
+            processed_uids = set()
+            cursor = None
+            # 记录连续没有新数据的次数
+            no_new_data_count = 0
+            # 上一次获取的用户数量
+            last_user_count = 0
+            
+            self.logger.info(f"获取用户: {len(processed_uids)}/{count}")
+            # 循环获取用户，直到达到请求的数量或没有更多用户
+            while len(processed_uids) < count:
+                # 使用新的方法获取用户
+                users, cursor = await self._find_users_by_search(query, cursor)
+
+                for user in users:
+                    uid = user.get("uid")
+                    if uid and uid not in processed_uids:
+                        processed_uids.add(uid)
+                        all_users.append(user)
+
+                self.logger.info(f"获取用户: {len(processed_uids)}/{count}, next cursor: {cursor}")
+
+                if len(processed_uids) == last_user_count:
+                    no_new_data_count += 1
+                else:
+                    no_new_data_count = 0
+                    last_user_count = len(processed_uids)
+
+                
+                # 如果没有cursor或已经达到请求的数量，退出循环
+                if not cursor or len(all_users) >= count:
+                    break
+
+                if no_new_data_count >= 3:
+                    self.logger.info("连续3次没有获取到新数据，停止搜索")
+                    break
+                
+                # 添加随机延迟，避免请求过于频繁
+                await self._random_delay(2, 5)
+            
+            # 确保返回数量不超过请求数量
+            return (True, "success", all_users[:count])
+            
+        except Exception as e:
+            error_msg = f"搜索用户失败: {str(e)}"
+            self.logger.error(error_msg)
+            import traceback
+            self.logger.error(traceback.format_exc())
+            return (False, error_msg, [])
+
+    async def _find_users_by_search(self, query: str, cursor: str = None) -> Tuple[List[Dict[str, Any]], str]:
+        """通过搜索获取一页用户
+        
+        Args:
+            query (str): 搜索关键词
+            count (int): 要获取的用户数量
+            cursor (str, optional): 分页游标，用于获取更多用户
+            
+        Returns:
+            Tuple[List[Dict[str, Any]], str]: 用户列表, 下一页游标
+        """
+        try:
+            # 准备 API 请求头
+            headers = {
+                "authorization": self.auth_params.get('auth_token'),
+                "x-csrf-token": self.auth_params.get('csrf_token'),
+                "cookie": self.auth_params.get('cookie'),
+                "user-agent": self.user_agent,
+                "content-type": "application/json",
+                "x-twitter-active-user": "yes",
+                "x-twitter-client-language": "zh-cn"
+            }
+            
+            # 准备请求参数
+            variables = {
+                "rawQuery": query,
+                "count": 20,
+                "querySource": "typed_query",
+                "product": "Top"
+            }
+            
+            # 如果提供了游标，添加到变量中
+            if cursor:
+                variables["cursor"] = cursor
+            
+            features = {
+                "rweb_video_screen_enabled": False,
+                "profile_label_improvements_pcf_label_in_post_enabled": True,
+                "rweb_tipjar_consumption_enabled": True,
+                "responsive_web_graphql_exclude_directive_enabled": True,
+                "verified_phone_label_enabled": False,
+                "creator_subscriptions_tweet_preview_api_enabled": True,
+                "responsive_web_graphql_timeline_navigation_enabled": True,
+                "responsive_web_graphql_skip_user_profile_image_extensions_enabled": False,
+                "premium_content_api_read_enabled": False,
+                "communities_web_enable_tweet_community_results_fetch": True,
+                "c9s_tweet_anatomy_moderator_badge_enabled": True,
+                "responsive_web_grok_analyze_button_fetch_trends_enabled": False,
+                "responsive_web_grok_analyze_post_followups_enabled": True,
+                "responsive_web_jetfuel_frame": False,
+                "responsive_web_grok_share_attachment_enabled": True,
+                "articles_preview_enabled": True,
+                "responsive_web_edit_tweet_api_enabled": True,
+                "graphql_is_translatable_rweb_tweet_is_translatable_enabled": True,
+                "view_counts_everywhere_api_enabled": True,
+                "longform_notetweets_consumption_enabled": True,
+                "responsive_web_twitter_article_tweet_consumption_enabled": True,
+                "tweet_awards_web_tipping_enabled": False,
+                "responsive_web_grok_show_grok_translated_post": False,
+                "responsive_web_grok_analysis_button_from_backend": False,
+                "creator_subscriptions_quote_tweet_preview_enabled": False,
+                "freedom_of_speech_not_reach_fetch_enabled": True,
+                "standardized_nudges_misinfo": True,
+                "tweet_with_visibility_results_prefer_gql_limited_actions_policy_enabled": True,
+                "longform_notetweets_rich_text_read_enabled": True,
+                "longform_notetweets_inline_media_enabled": True,
+                "responsive_web_grok_image_annotation_enabled": True,
+                "responsive_web_enhance_cards_enabled": False
+            }
+            
+            # 构建请求 URL
+            endpoint = self.api_endpoints.get("search_timeline")
+            if not endpoint:
+                self.logger.error("无法获取 search_timeline API 端点")
+                return ([], None)
+            
+            # URL 参数编码
+            params = {
+                "variables": json.dumps(variables),
+                "features": json.dumps(features)
+            }
+            query_string = urllib.parse.urlencode(params)
+            url = f"{endpoint}?{query_string}"
+            
+            # 设置代理
+            proxy = None
+            if self.proxy_enabled and self.proxy_url:
+                proxy = self.proxy_url
+            
+            # 发送请求
+            timeout = aiohttp.ClientTimeout(total=30)
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                request_kwargs = {"headers": headers}
+                if proxy:
+                    request_kwargs["proxy"] = proxy
+                
+                async with session.get(url, **request_kwargs) as response:
+                    response_data = await response.json()
+            
+            # 解析响应数据
+            users = []
+            next_cursor = None
+            
+            instructions = response_data.get("data", {}).get("search_by_raw_query", {}).get("search_timeline", {}).get("timeline", {}).get("instructions", [])
+            
+            for instruction in instructions:
+                if instruction.get("type") == "TimelineAddEntries":
+                    entries = instruction.get("entries", [])
+                    for entry in entries:
+                        # 提取下一页游标
+                        if entry.get("entryId", "").startswith("cursor-bottom-"):
+                            next_cursor = entry.get("content", {}).get("value", "")
+                            continue
+                            
+                        if entry.get("entryId", "").startswith("tweet-"):
+                            result = entry.get("content", {}).get("itemContent", {}).get("tweet_results", {}).get("result", {})
+                            user_result = result.get("core", {}).get("user_results", {}).get("result", {})
+                            legacy = user_result.get("legacy", {})
+                            if not user_result or not legacy:
+                                continue
+                            
+                            # 获取用户简介
+                            bio = legacy.get('description', '')
+                            
+                            # 从简介中提取邮箱
+                            email_in_bio = await self._extract_email_from_text(bio)
+                            
+                            user_data = {
+                                "uid": user_result.get("rest_id", ""),
+                                "username": legacy.get('screen_name', ''),
+                                "nickname": legacy.get('name', ''),
+                                "is_verified": legacy.get('verified', False),
+                                "followers_count": legacy.get('followers_count', 0),
+                                "following_count": legacy.get('friends_count', 0),
+                                "tweet_count": legacy.get('statuses_count', 0),
+                                "bio": bio,
+                                "email_in_bio": email_in_bio,
+                                "location": legacy.get('location', ''),
+                                "url": f"https://x.com/{legacy.get('screen_name', '')}"
+                            }
+                            users.append(user_data)
+
+                elif instruction.get("type") == "TimelineReplaceEntry":
+                    entry = instruction.get("entry", {})
+                    if not next_cursor and entry.get("entryId", "").startswith("cursor-bottom-"):
+                        next_cursor = entry.get("content", {}).get("value", "")
+                        continue
+
+            return (users, next_cursor)
+            
+        except Exception as e:
+            self.logger.error(f"获取搜索用户页面失败: {str(e)}")
+            import traceback
+            self.logger.error(traceback.format_exc())
+            return ([], None)

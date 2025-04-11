@@ -101,6 +101,12 @@ async def run_fetcher(platform, action, params) -> Tuple[bool, str, List[Dict[st
             logger.info(f"查找与 {username} 相似的用户，数量: {count}, uid: {uid}")
             success, msg, result = await fetcher.find_similar_users(username, count, uid)
             return (success, msg, result)
+        elif action == "search":
+            query = params.get("query")
+            count = params.get("count", 200)
+            logger.info(f"使用query: {query} 搜索用户, 数量: {count}")
+            success, msg, result = await fetcher.find_users_by_search(query, count)
+            return (success, msg, result)
         else:
             raise ValueError(f"不支持的操作: {action}")
     
