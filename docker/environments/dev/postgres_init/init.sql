@@ -1,8 +1,10 @@
 CREATE USER fetcher WITH PASSWORD 'V2KMm4DgfKoCq9iw';
 CREATE DATABASE fetcher;
+CREATE DATABASE graph_weaver_admin;
 
 GRANT ALL PRIVILEGES ON DATABASE fetcher TO postgres;
 GRANT ALL PRIVILEGES ON DATABASE fetcher TO fetcher;
+GRANT ALL PRIVILEGES ON DATABASE graph_weaver_admin TO postgres;
 
 \c fetcher;
 
