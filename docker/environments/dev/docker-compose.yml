@@ -15,20 +15,20 @@ services:
       - graph-weaver_network
     restart: unless-stopped
 
-  rabbitmq:
-    image: rabbitmq:management-alpine
-    container_name: rabbitmq
-    ports:
-      - "${RABBITMQ_PORT}:5672"
-      - "${RABBITMQ_MANAGEMENT_PORT}:15672"
-    environment:
-      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
-      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS}
-    volumes:
-      - rabbitmq:/var/lib/rabbitmq
-    networks:
-      - graph-weaver_network
-    restart: unless-stopped
+  # rabbitmq:
+  #   image: rabbitmq:management-alpine
+  #   container_name: rabbitmq
+  #   ports:
+  #     - "${RABBITMQ_PORT}:5672"
+  #     - "${RABBITMQ_MANAGEMENT_PORT}:15672"
+  #   environment:
+  #     RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
+  #     RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS}
+  #   volumes:
+  #     - rabbitmq:/var/lib/rabbitmq
+  #   networks:
+  #     - graph-weaver_network
+  #   restart: unless-stopped
 
   redis:
     image: redis:7.0-alpine  # 使用官方 Alpine 版本（轻量级）
