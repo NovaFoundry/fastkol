@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+package twitter.v1;
+
+option go_package = "Admin/api/twitter/v1;v1";
+
+enum ErrorReason {
+  UNKNOWN_ERROR = 0;
+  TWITTER_ACCOUNT_NOT_FOUND = 1;
+  TWITTER_ACCOUNT_ALREADY_EXISTS = 2;
+  INVALID_PARAMETER = 3;
+  INTERNAL_ERROR = 4;
+} 

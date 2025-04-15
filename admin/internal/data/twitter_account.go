@@ -23,13 +23,13 @@ const (
 // TwitterAccount represents a Twitter account in the database
 type TwitterAccount struct {
 	ID        uint           `gorm:"primarykey"`
-	CreatedAt time.Time      `gorm:"not null"`
-	UpdatedAt time.Time      `gorm:"not null"`
+	CreatedAt time.Time      `gorm:"not null;default:CURRENT_TIMESTAMP"`
+	UpdatedAt time.Time      `gorm:"not null;default:CURRENT_TIMESTAMP"`
 	DeletedAt gorm.DeletedAt `gorm:"index"`
 
 	Username  string        `gorm:"type:varchar(255);not null;uniqueIndex"`
-	Email     string        `gorm:"type:varchar(255);not null;uniqueIndex"`
-	Phone     string        `gorm:"type:varchar(20);not null;uniqueIndex"`
+	Email     string        `gorm:"type:varchar(255);not null;default:'';index"`
+	Phone     string        `gorm:"type:varchar(20);not null;default:'';index"`
 	Password  string        `gorm:"type:varchar(255);not null"`
 	AuthToken string        `gorm:"type:text"`
 	CsrfToken string        `gorm:"type:text"`

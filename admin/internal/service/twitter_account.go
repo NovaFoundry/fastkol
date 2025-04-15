@@ -1,0 +1,143 @@
+package service
+
+import (
+	"context"
+	"time"
+
+	v1 "Admin/api/twitter/v1"
+	"Admin/internal/biz"
+
+	"github.com/go-kratos/kratos/v2/log"
+)
+
+// TwitterAccountService 是Twitter账号服务
+type TwitterAccountService struct {
+	v1.UnimplementedTwitterAccountServer
+
+	uc  *biz.TwitterAccountUsecase
+	log *log.Helper
+}
+
+// NewTwitterAccountService 创建一个新的Twitter账号服务
+func NewTwitterAccountService(uc *biz.TwitterAccountUsecase, logger log.Logger) *TwitterAccountService {
+	return &TwitterAccountService{
+		uc:  uc,
+		log: log.NewHelper(logger),
+	}
+}
+
+// CreateTwitterAccount 创建一个Twitter账号
+func (s *TwitterAccountService) CreateTwitterAccount(ctx context.Context, req *v1.CreateTwitterAccountRequest) (*v1.CreateTwitterAccountReply, error) {
+	account := &biz.TwitterAccount{
+		Username:  req.Username,
+		Email:     req.Email,
+		Phone:     req.Phone,
+		Password:  req.Password,
+		AuthToken: req.AuthToken,
+		CsrfToken: req.CsrfToken,
+		Cookie:    req.Cookie,
+		Status:    req.Status,
+	}
+
+	result, err := s.uc.Create(ctx, account)
+	if err != nil {
+		return nil, err
+	}
+
+	return &v1.CreateTwitterAccountReply{
+		Id:        int64(result.ID),
+		Username:  result.Username,
+		Email:     result.Email,
+		Phone:     result.Phone,
+		Status:    result.Status,
+		CreatedAt: result.CreatedAt.Format(time.RFC3339),
+	}, nil
+}
+
+// UpdateTwitterAccount 更新一个Twitter账号
+func (s *TwitterAccountService) UpdateTwitterAccount(ctx context.Context, req *v1.UpdateTwitterAccountRequest) (*v1.UpdateTwitterAccountReply, error) {
+	account := &biz.TwitterAccount{
+		ID:        uint(req.Id),
+		Username:  req.Username,
+		Email:     req.Email,
+		Phone:     req.Phone,
+		Password:  req.Password,
+		AuthToken: req.AuthToken,
+		CsrfToken: req.CsrfToken,
+		Cookie:    req.Cookie,
+		Status:    req.Status,
+	}
+
+	result, err := s.uc.Update(ctx, account)
+	if err != nil {
+		return nil, err
+	}
+
+	return &v1.UpdateTwitterAccountReply{
+		Id:        int64(result.ID),
+		Username:  result.Username,
+		Email:     result.Email,
+		Phone:     result.Phone,
+		Status:    result.Status,
+		UpdatedAt: result.UpdatedAt.Format(time.RFC3339),
+	}, nil
+}
+
+// DeleteTwitterAccount 删除一个Twitter账号
+func (s *TwitterAccountService) DeleteTwitterAccount(ctx context.Context, req *v1.DeleteTwitterAccountRequest) (*v1.DeleteTwitterAccountReply, error) {
+	err := s.uc.Delete(ctx, uint(req.Id))
+	if err != nil {
+		return nil, err
+	}
+
+	return &v1.DeleteTwitterAccountReply{
+		Success: true,
+	}, nil
+}
+
+// GetTwitterAccount 获取一个Twitter账号
+func (s *TwitterAccountService) GetTwitterAccount(ctx context.Context, req *v1.GetTwitterAccountRequest) (*v1.GetTwitterAccountReply, error) {
+	account, err := s.uc.Get(ctx, uint(req.Id))
+	if err != nil {
+		return nil, err
+	}
+
+	return &v1.GetTwitterAccountReply{
+		Id:        int64(account.ID),
+		Username:  account.Username,
+		Email:     account.Email,
+		Phone:     account.Phone,
+		AuthToken: account.AuthToken,
+		CsrfToken: account.CsrfToken,
+		Cookie:    account.Cookie,
+		Status:    account.Status,
+		CreatedAt: account.CreatedAt.Format(time.RFC3339),
+		UpdatedAt: account.UpdatedAt.Format(time.RFC3339),
+	}, nil
+}
+
+// ListTwitterAccounts 列出所有Twitter账号
+func (s *TwitterAccountService) ListTwitterAccounts(ctx context.Context, req *v1.ListTwitterAccountsRequest) (*v1.ListTwitterAccountsReply, error) {
+	accounts, total, err := s.uc.List(ctx, int(req.PageSize), int(req.PageNum), req.Status)
+	if err != nil {
+		return nil, err
+	}
+
+	result := &v1.ListTwitterAccountsReply{
+		Total: int32(total),
+	}
+
+	for _, account := range accounts {
+		result.Accounts = append(result.Accounts, &v1.TwitterAccountInfo{
+			Id:        int64(account.ID),
+			Username:  account.Username,
+			Email:     account.Email,
+			Phone:     account.Phone,
+			Status:    account.Status,
+			CreatedAt: account.CreatedAt.Format(time.RFC3339),
+			UpdatedAt: account.UpdatedAt.Format(time.RFC3339),
+		})
+	}
+
+	return result, nil
+}

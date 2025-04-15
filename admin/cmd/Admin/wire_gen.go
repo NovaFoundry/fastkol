@@ -32,8 +32,11 @@ func wireApp(confServer *conf.Server, confData *conf.Data, confRegistry *conf.Re
 	greeterRepo := data.NewGreeterRepo(dataData, logger)
 	greeterUsecase := biz.NewGreeterUsecase(greeterRepo, logger)
 	greeterService := service.NewGreeterService(greeterUsecase)
-	grpcServer := server.NewGRPCServer(confServer, greeterService, logger)
-	httpServer := server.NewHTTPServer(confServer, greeterService, logger)
+	twitterAccountRepo := data.NewTwitterAccountRepo(dataData, logger)
+	twitterAccountUsecase := biz.NewTwitterAccountUsecase(twitterAccountRepo, logger)
+	twitterAccountService := service.NewTwitterAccountService(twitterAccountUsecase, logger)
+	grpcServer := server.NewGRPCServer(confServer, greeterService, twitterAccountService, logger)
+	httpServer := server.NewHTTPServer(confServer, greeterService, twitterAccountService, logger)
 	registrar, err := registry.NewNacosRegistry(confRegistry)
 	if err != nil {
 		cleanup()
