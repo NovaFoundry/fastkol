@@ -10,6 +10,7 @@ import (
 	"Admin/internal/biz"
 	"Admin/internal/conf"
 	"Admin/internal/data"
+	"Admin/internal/registry"
 	"Admin/internal/server"
 	"Admin/internal/service"
 	"github.com/go-kratos/kratos/v2"
@@ -23,7 +24,7 @@ import (
 // Injectors from wire.go:
 
 // wireApp init kratos application.
-func wireApp(confServer *conf.Server, confData *conf.Data, logger log.Logger) (*kratos.App, func(), error) {
+func wireApp(confServer *conf.Server, confData *conf.Data, confRegistry *conf.Registry, logger log.Logger) (*kratos.App, func(), error) {
 	dataData, cleanup, err := data.NewData(confData, logger)
 	if err != nil {
 		return nil, nil, err
@@ -33,7 +34,12 @@ func wireApp(confServer *conf.Server, confData *conf.Data, logger log.Logger) (*
 	greeterService := service.NewGreeterService(greeterUsecase)
 	grpcServer := server.NewGRPCServer(confServer, greeterService, logger)
 	httpServer := server.NewHTTPServer(confServer, greeterService, logger)
-	app := newApp(logger, grpcServer, httpServer)
+	registrar, err := registry.NewNacosRegistry(confRegistry)
+	if err != nil {
+		cleanup()
+		return nil, nil, err
+	}
+	app := newApp(logger, grpcServer, httpServer, registrar)
 	return app, func() {
 		cleanup()
 	}, nil

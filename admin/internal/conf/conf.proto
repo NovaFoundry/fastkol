@@ -8,6 +8,7 @@ import "google/protobuf/duration.proto";
 message Bootstrap {
   Server server = 1;
   Data data = 2;
+  Registry registry = 3;
 }
 
 message Server {
@@ -38,4 +39,31 @@ message Data {
   }
   Database database = 1;
   Redis redis = 2;
+}
+
+message Registry {
+  message Nacos {
+    message Client {
+      string namespace = 1;
+      string address = 2;
+      int32 port = 3;
+      int32 grpc_port = 4;
+      string username = 5;
+      string password = 6;
+    }
+    message Service {
+      string ip = 1;
+      int32 port = 2;
+      int32 grpc_port = 3;
+      int32 weight = 4;
+      bool enabled = 5;
+      bool healthy = 6;
+      string name = 7;
+      string group = 8;
+      bool ephemeral = 9;
+    }
+    Client client = 1;
+    Service service = 2;
+  }
+  Nacos nacos = 1;
 }
