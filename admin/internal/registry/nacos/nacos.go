@@ -4,6 +4,9 @@ import (
 	"Admin/internal/conf"
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/go-kratos/kratos/v2/registry"
 	"github.com/nacos-group/nacos-sdk-go/v2/clients"
@@ -14,11 +17,48 @@ import (
 
 // NewNacosRegistry 创建 Nacos 服务注册实例
 func NewNacosRegistry(c *conf.Registry) (registry.Registrar, error) {
+	// 获取当前工作目录
+	workDir, err := os.Getwd()
+	if err != nil {
+		return nil, fmt.Errorf("获取工作目录失败: %v", err)
+	}
+
+	// 如果当前在cmd目录下，则回退到项目根目录
+	if strings.HasSuffix(workDir, "/cmd") || strings.HasSuffix(workDir, "/cmd/Admin") {
+		workDir = filepath.Dir(filepath.Dir(workDir))
+	}
+
+	// 设置默认的日志和缓存目录
+	logDir := "log/nacos"
+	cacheDir := "cache/nacos"
+
+	// 如果配置中指定了日志和缓存目录，则使用配置中的值
+	if c.Nacos.Client.LogDir != "" {
+		logDir = c.Nacos.Client.LogDir
+	}
+
+	if c.Nacos.Client.CacheDir != "" {
+		cacheDir = c.Nacos.Client.CacheDir
+	}
+
+	// 判断路径是否为绝对路径
+	isAbsLogDir := filepath.IsAbs(logDir)
+	isAbsCacheDir := filepath.IsAbs(cacheDir)
+
+	// 如果是相对路径，则加上工作目录
+	if !isAbsLogDir {
+		logDir = filepath.Join(workDir, logDir)
+	}
+
+	if !isAbsCacheDir {
+		cacheDir = filepath.Join(workDir, cacheDir)
+	}
+
 	clientConfig := constant.ClientConfig{
 		NamespaceId:         c.Nacos.Client.Namespace,
 		NotLoadCacheAtStart: true,
-		LogDir:              "/tmp/nacos/log",
-		CacheDir:            "/tmp/nacos/cache",
+		LogDir:              logDir,
+		CacheDir:            cacheDir,
 		Username:            c.Nacos.Client.Username,
 		Password:            c.Nacos.Client.Password,
 	}

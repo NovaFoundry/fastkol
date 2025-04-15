@@ -48,8 +48,10 @@ message Registry {
       string address = 2;
       int32 port = 3;
       int32 grpc_port = 4;
-      string username = 5;
-      string password = 6;
+      string log_dir = 5;
+      string cache_dir = 6;
+      string username = 7;
+      string password = 8;
     }
     message Service {
       string ip = 1;
