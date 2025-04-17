@@ -1,5 +1,3 @@
-
-
 # Fetcher 服务启动指南
 
 ## 简介
@@ -114,14 +112,70 @@ nacos:
   timeout: 5
   
 service:
-  name: fetcher-service
-  ip: ${HOST_IP}
-  port: 8000
-  weight: 1
-  cluster_name: DEFAULT
-  group_name: DEFAULT_GROUP
-  ephemeral: true
+  name: fetcher-service       # 服务名称
+  ip: 127.0.0.1              # 服务 IP
+  port: 18101                # 服务端口
+  weight: 1                   # 权重
+  cluster_name: DEFAULT       # 集群名称
+  group_name: GRAPH_WEAVER    # 服务分组
+  ephemeral: true            # 是否临时实例
+  metadata:                  # 元数据
+    version: "1.0.0"
+    env: "dev"
+    type: "http"
+  health_check:             # 健康检查配置
+    type: "TCP"
+    interval: 5
+    timeout: 3
+    retries: 3
 ```
+
+### 健康检查
+
+服务提供了健康检查端点 `/health`，用于检查服务的整体健康状态：
+
+```bash
+curl http://localhost:18101/health
+```
+
+响应示例：
+```json
+{
+    "status": "ok",
+    "timestamp": 1713345678,
+    "components": {
+        "nacos": {
+            "status": "healthy",
+            "service_info": {
+                "name": "fetcher-service",
+                "ip": "127.0.0.1",
+                "port": 18101,
+                "cluster": "DEFAULT",
+                "group": "GRAPH_WEAVER"
+            }
+        },
+        "database": {
+            "status": "healthy"
+        },
+        "celery": {
+            "status": "healthy"
+        }
+    }
+}
+```
+
+### 服务注册
+
+服务启动时会自动注册到 Nacos，并在关闭时自动注销。注册的服务信息包括：
+- 服务名称
+- IP 地址
+- 端口
+- 健康状态
+- 元数据
+
+### 配置管理
+
+服务支持从 Nacos 获取配置，并监听配置变更。配置变更时会自动更新服务配置。
 
 ## API 接口
 

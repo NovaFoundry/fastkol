@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, field_validator
 from typing import Dict, Any, List, Optional, Union
 from contextlib import asynccontextmanager
+from sqlalchemy import text
 
 from app.settings import settings
 from app.db.operations import init_db, update_fetch_task, SessionLocal, get_fetch_task
@@ -84,6 +85,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 # ============= 爬虫 API 模型 =============
 
 class FollowsFilter(BaseModel):
@@ -171,7 +173,52 @@ async def root():
 
 @app.get("/health")
 async def health_check():
-    return {"status": "healthy"}
+    """健康检查端点
+    
+    Returns:
+        dict: 包含服务健康状态的详细信息
+    """
+    # 获取当前时间戳
+    current_time = int(time.time())
+    
+    # 检查 Nacos 服务状态
+    nacos_status = "healthy" if nacos_client.get_is_initialized() else "unhealthy"
+    
+    # 获取服务实例信息
+    service_info = nacos_client.get_service_instances('fetcher-service-http')
+    
+    # 检查数据库连接
+    try:
+        async with SessionLocal() as session:
+            await session.execute(text("SELECT 1"))
+        db_status = "healthy"
+    except Exception as e:
+        logger.error(f"Database health check failed: {e}")
+        db_status = "unhealthy"
+    
+    # 检查 Celery 状态
+    try:
+        celery_status = "healthy" if celery_app.control.ping() else "unhealthy"
+    except Exception as e:
+        logger.error(f"Celery health check failed: {e}")
+        celery_status = "unhealthy"
+    
+    return {
+        "status": "ok",
+        "timestamp": current_time,
+        "components": {
+            "nacos": {
+                "status": nacos_status,
+                "service_info": service_info
+            },
+            "database": {
+                "status": db_status
+            },
+            "celery": {
+                "status": celery_status
+            }
+        }
+    }
 
 def generate_task_id(platform: str, action: str) -> str:
     """
