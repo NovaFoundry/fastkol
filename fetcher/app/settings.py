@@ -104,6 +104,10 @@ class Settings:
             return self.nacos_config
         return self.nacos_config.get(key, default)
     
+    def get_nacos_group(self) -> str:
+        """获取Nacos组名"""
+        return self.nacos_config.get('service', {}).get('group_name', 'DEFAULT_GROUP')
+    
     def get_nacos_enabled(self) -> bool:
         """获取Nacos是否启用"""
         return self.NACOS_ENABLED

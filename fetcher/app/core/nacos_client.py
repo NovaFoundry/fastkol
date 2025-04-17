@@ -77,13 +77,13 @@ class NacosClient:
             logger.error(f"Failed to deregister service: {e}")
             return False
             
-    def get_service_instances(self, service_name: str) -> list:
+    def get_service_instances(self, service_name: str, group_name: str = "DEFAULT_GROUP") -> list:
         """获取服务实例列表"""
         if not self.client or not settings.get_nacos_enabled():
             return []
             
         try:
-            return self.client.list_naming_instance(service_name)
+            return self.client.list_naming_instance(service_name=service_name, group_name=group_name)
         except Exception as e:
             logger.error(f"Failed to get service instances: {e}")
             return []

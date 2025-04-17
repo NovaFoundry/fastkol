@@ -185,7 +185,7 @@ async def health_check():
     nacos_status = "healthy" if nacos_client.get_is_initialized() else "unhealthy"
     
     # 获取服务实例信息
-    service_info = nacos_client.get_service_instances('fetcher-service-http')
+    service_info = nacos_client.get_service_instances(service_name='admin-service-http', group_name=settings.get_nacos_group())
     
     # 检查数据库连接
     try:
