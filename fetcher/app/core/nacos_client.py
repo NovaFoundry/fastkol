@@ -42,8 +42,9 @@ class NacosClient:
             
         try:
             service_config = settings.get_nacos_config().get('service')
+            service_name = service_config['name'] + '-http'
             self.client.add_naming_instance(
-                service_name=service_config['name'],
+                service_name=service_name,
                 ip=service_config['ip'],
                 port=service_config['port'],
                 weight=service_config['weight'],
@@ -52,7 +53,7 @@ class NacosClient:
                 ephemeral=service_config['ephemeral'],
                 heartbeat_interval=service_config.get('heartbeat_interval', 5)
             )
-            logger.info(f"Successfully registered service {service_config['name']}")
+            logger.info(f"Successfully registered service {service_name}")
             return True
         except Exception as e:
             logger.error(f"Failed to register service: {e}")
