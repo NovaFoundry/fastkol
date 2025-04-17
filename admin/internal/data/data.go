@@ -2,9 +2,12 @@ package data
 
 import (
 	"Admin/internal/conf"
+	"context"
+	"time"
 
 	"github.com/go-kratos/kratos/v2/log"
 	"github.com/google/wire"
+	"github.com/redis/go-redis/v9"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
@@ -14,8 +17,9 @@ var ProviderSet = wire.NewSet(NewData, NewGreeterRepo, NewTwitterAccountRepo)
 
 // Data .
 type Data struct {
-	db  *gorm.DB
-	log *log.Helper
+	db    *gorm.DB
+	redis *redis.Client
+	log   *log.Helper
 }
 
 // NewData .
@@ -33,9 +37,25 @@ func NewData(c *conf.Data, logger log.Logger) (*Data, func(), error) {
 		return nil, nil, err
 	}
 
+	// 初始化Redis客户端
+	redisClient := redis.NewClient(&redis.Options{
+		Addr:         c.Redis.Addr,
+		DB:           int(c.Redis.Db),
+		ReadTimeout:  c.Redis.ReadTimeout.AsDuration(),
+		WriteTimeout: c.Redis.WriteTimeout.AsDuration(),
+	})
+
+	// 测试Redis连接
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := redisClient.Ping(ctx).Err(); err != nil {
+		return nil, nil, err
+	}
+
 	d := &Data{
-		db:  db,
-		log: helper,
+		db:    db,
+		redis: redisClient,
+		log:   helper,
 	}
 
 	cleanup := func() {
@@ -46,6 +66,10 @@ func NewData(c *conf.Data, logger log.Logger) (*Data, func(), error) {
 			return
 		}
 		err = sqlDB.Close()
+		if err != nil {
+			log.NewHelper(logger).Error(err)
+		}
+		err = d.redis.Close()
 		if err != nil {
 			log.NewHelper(logger).Error(err)
 		}

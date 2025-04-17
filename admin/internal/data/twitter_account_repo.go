@@ -2,6 +2,8 @@ package data
 
 import (
 	"context"
+	"fmt"
+	"time"
 
 	"Admin/internal/biz"
 
@@ -180,4 +182,103 @@ func (r *twitterAccountRepo) List(ctx context.Context, pageSize, pageNum int, st
 	}
 
 	return result, total, nil
+}
+
+// GetAndLockTwitterAccounts 获取并锁定多个可用的Twitter账号
+func (r *twitterAccountRepo) GetAndLockTwitterAccounts(ctx context.Context, count int, lockSeconds int) ([]*biz.TwitterAccount, error) {
+	// 查找多个状态为normal的账号
+	var accounts []*TwitterAccount
+	err := r.data.db.WithContext(ctx).
+		Where("status = ?", AccountStatusNormal).
+		Limit(count).
+		Find(&accounts).Error
+	if err != nil {
+		return nil, err
+	}
+
+	if len(accounts) == 0 {
+		return nil, biz.ErrTwitterAccountNotFound
+	}
+
+	// 尝试获取Redis锁
+	lockedAccounts := make([]*biz.TwitterAccount, 0, len(accounts))
+	for _, account := range accounts {
+		lockKey := fmt.Sprintf("twitter_account_lock:%d", account.ID)
+		locked, err := r.data.redis.SetNX(ctx, lockKey, "1", time.Duration(lockSeconds)*time.Second).Result()
+		if err != nil {
+			// 如果获取锁失败，需要解锁已经获取的账号
+			for _, lockedAccount := range lockedAccounts {
+				unlockKey := fmt.Sprintf("twitter_account_lock:%d", lockedAccount.ID)
+				r.data.redis.Del(ctx, unlockKey)
+			}
+			return nil, err
+		}
+		if !locked {
+			continue
+		}
+
+		// 转换为业务层模型
+		lockedAccounts = append(lockedAccounts, &biz.TwitterAccount{
+			ID:        account.ID,
+			CreatedAt: account.CreatedAt,
+			UpdatedAt: account.UpdatedAt,
+			Username:  account.Username,
+			Email:     account.Email,
+			Phone:     account.Phone,
+			Password:  account.Password,
+			AuthToken: account.AuthToken,
+			CsrfToken: account.CsrfToken,
+			Cookie:    account.Cookie,
+			Status:    string(account.Status),
+		})
+	}
+
+	if len(lockedAccounts) == 0 {
+		return nil, biz.ErrTwitterAccountNotFound
+	}
+
+	return lockedAccounts, nil
+}
+
+// UnlockTwitterAccounts 解锁指定的Twitter账号
+func (r *twitterAccountRepo) UnlockTwitterAccounts(ctx context.Context, ids []uint) error {
+	if len(ids) == 0 {
+		return nil
+	}
+
+	// 构建管道
+	pipe := r.data.redis.Pipeline()
+	for _, id := range ids {
+		lockKey := fmt.Sprintf("twitter_account_lock:%d", id)
+		pipe.Del(ctx, lockKey)
+	}
+
+	// 执行管道命令
+	_, err := pipe.Exec(ctx)
+	return err
+}
+
+// GetByUsername 根据用户名获取一个Twitter账号
+func (r *twitterAccountRepo) GetByUsername(ctx context.Context, username string) (*biz.TwitterAccount, error) {
+	account := &TwitterAccount{}
+	if err := r.data.db.WithContext(ctx).Where("username = ?", username).First(account).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, biz.ErrTwitterAccountNotFound
+		}
+		return nil, err
+	}
+
+	return &biz.TwitterAccount{
+		ID:        account.ID,
+		CreatedAt: account.CreatedAt,
+		UpdatedAt: account.UpdatedAt,
+		Username:  account.Username,
+		Email:     account.Email,
+		Phone:     account.Phone,
+		Password:  account.Password,
+		AuthToken: account.AuthToken,
+		CsrfToken: account.CsrfToken,
+		Cookie:    account.Cookie,
+		Status:    string(account.Status),
+	}, nil
 }

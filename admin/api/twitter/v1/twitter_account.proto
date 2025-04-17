@@ -47,6 +47,22 @@ service TwitterAccount {
       get: "/v1/twitter/accounts"
     };
   }
+
+  // 获取并锁定Twitter账号
+  rpc LockTwitterAccounts (LockTwitterAccountsRequest) returns (LockTwitterAccountsReply) {
+    option (google.api.http) = {
+      post: "/v1/twitter/accounts/lock"
+      body: "*"
+    };
+  }
+
+  // 解锁Twitter账号
+  rpc UnlockTwitterAccounts (UnlockTwitterAccountsRequest) returns (UnlockTwitterAccountsReply) {
+    option (google.api.http) = {
+      post: "/v1/twitter/accounts/unlock"
+      body: "*"
+    };
+  }
 }
 
 // 创建Twitter账号请求
@@ -63,12 +79,7 @@ message CreateTwitterAccountRequest {
 
 // 创建Twitter账号响应
 message CreateTwitterAccountReply {
-  int64 id = 1;
-  string username = 2;
-  string email = 3;
-  string phone = 4;
-  string status = 5;
-  string created_at = 6;
+  TwitterAccountInfo account = 1;
 }
 
 // 更新Twitter账号请求
@@ -90,8 +101,11 @@ message UpdateTwitterAccountReply {
   string username = 2;
   string email = 3;
   string phone = 4;
-  string status = 5;
-  string updated_at = 6;
+  string auth_token = 5;
+  string csrf_token = 6;
+  string cookie = 7;
+  string status = 8;
+  string updated_at = 9;
 }
 
 // 删除Twitter账号请求
@@ -111,6 +125,47 @@ message GetTwitterAccountRequest {
 
 // 获取Twitter账号响应
 message GetTwitterAccountReply {
+  TwitterAccountInfo account = 1;
+}
+
+// 列出所有Twitter账号请求
+message ListTwitterAccountsRequest {
+  int32 page_size = 1; // 每页数量，默认20
+  int32 page_num = 2; // 页码，默认1
+  string status = 3; // 状态，默认normal
+}
+
+// 列出所有Twitter账号响应
+message ListTwitterAccountsReply {
+  repeated TwitterAccountInfo accounts = 1;
+  int32 total = 2;
+}
+
+// 获取并锁定Twitter账号请求
+message LockTwitterAccountsRequest {
+  int32 count = 1; // 需要获取的账号数量，默认1
+  int32 lock_seconds = 2; // 锁定时间，单位秒，默认60秒
+}
+
+// 获取并锁定Twitter账号响应
+message LockTwitterAccountsReply {
+  repeated TwitterAccountInfo accounts = 1;
+  int32 lock_seconds = 2; // 实际锁定的时间
+}
+
+// 解锁Twitter账号请求
+message UnlockTwitterAccountsRequest {
+  repeated int64 ids = 1; // 要解锁的账号ID列表
+}
+
+// 解锁Twitter账号响应
+message UnlockTwitterAccountsReply {
+  bool success = 1;
+  int32 unlocked_count = 2; // 成功解锁的账号数量
+}
+
+// Twitter账号信息
+message TwitterAccountInfo {
   int64 id = 1;
   string username = 2;
   string email = 3;
@@ -121,28 +176,4 @@ message GetTwitterAccountReply {
   string status = 8;
   string created_at = 9;
   string updated_at = 10;
-}
-
-// 列出所有Twitter账号请求
-message ListTwitterAccountsRequest {
-  int32 page_size = 1;
-  int32 page_num = 2;
-  string status = 3;
-}
-
-// 列出所有Twitter账号响应
-message ListTwitterAccountsReply {
-  repeated TwitterAccountInfo accounts = 1;
-  int32 total = 2;
-}
-
-// Twitter账号信息
-message TwitterAccountInfo {
-  int64 id = 1;
-  string username = 2;
-  string email = 3;
-  string phone = 4;
-  string status = 5;
-  string created_at = 6;
-  string updated_at = 7;
 } 

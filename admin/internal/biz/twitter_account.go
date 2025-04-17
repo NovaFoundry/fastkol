@@ -41,7 +41,10 @@ type TwitterAccountRepo interface {
 	Update(context.Context, *TwitterAccount) (*TwitterAccount, error)
 	Delete(context.Context, uint) error
 	GetByID(context.Context, uint) (*TwitterAccount, error)
+	GetByUsername(context.Context, string) (*TwitterAccount, error)
 	List(context.Context, int, int, string) ([]*TwitterAccount, int64, error)
+	GetAndLockTwitterAccounts(context.Context, int, int) ([]*TwitterAccount, error)
+	UnlockTwitterAccounts(context.Context, []uint) error
 }
 
 // TwitterAccountUsecase 是Twitter账号用例
@@ -58,13 +61,69 @@ func NewTwitterAccountUsecase(repo TwitterAccountRepo, logger log.Logger) *Twitt
 // Create 创建一个Twitter账号
 func (uc *TwitterAccountUsecase) Create(ctx context.Context, ta *TwitterAccount) (*TwitterAccount, error) {
 	uc.log.WithContext(ctx).Infof("Create TwitterAccount: %v", ta.Username)
+
+	// 验证邮件、用户名都要有
+	if ta.Email == "" || ta.Username == "" {
+		return nil, ErrInvalidParameter
+	}
+	if ta.Password == "" {
+		return nil, ErrInvalidParameter
+	}
+
+	// 检查用户名是否已存在
+	existingAccount, err := uc.repo.GetByUsername(ctx, ta.Username)
+	if err != nil && !errors.Is(err, ErrTwitterAccountNotFound) {
+		return nil, err
+	}
+	if existingAccount != nil {
+		return nil, ErrTwitterAccountAlreadyExists
+	}
+
+	// 状态默认normal
+	if ta.Status == "" {
+		ta.Status = "normal"
+	}
+
 	return uc.repo.Create(ctx, ta)
 }
 
 // Update 更新一个Twitter账号
 func (uc *TwitterAccountUsecase) Update(ctx context.Context, ta *TwitterAccount) (*TwitterAccount, error) {
 	uc.log.WithContext(ctx).Infof("Update TwitterAccount: %v", ta.ID)
-	return uc.repo.Update(ctx, ta)
+
+	// 获取现有账号
+	existingAccount, err := uc.repo.GetByID(ctx, ta.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	// 只更新非空字段
+	if ta.Username != "" {
+		existingAccount.Username = ta.Username
+	}
+	if ta.Email != "" {
+		existingAccount.Email = ta.Email
+	}
+	if ta.Phone != "" {
+		existingAccount.Phone = ta.Phone
+	}
+	if ta.Password != "" {
+		existingAccount.Password = ta.Password
+	}
+	if ta.AuthToken != "" {
+		existingAccount.AuthToken = ta.AuthToken
+	}
+	if ta.CsrfToken != "" {
+		existingAccount.CsrfToken = ta.CsrfToken
+	}
+	if ta.Cookie != "" {
+		existingAccount.Cookie = ta.Cookie
+	}
+	if ta.Status != "" {
+		existingAccount.Status = ta.Status
+	}
+
+	return uc.repo.Update(ctx, existingAccount)
 }
 
 // Delete 删除一个Twitter账号
@@ -81,6 +140,43 @@ func (uc *TwitterAccountUsecase) Get(ctx context.Context, id uint) (*TwitterAcco
 
 // List 列出所有Twitter账号
 func (uc *TwitterAccountUsecase) List(ctx context.Context, pageSize, pageNum int, status string) ([]*TwitterAccount, int64, error) {
+	// 设置默认值
+	if pageSize <= 0 {
+		pageSize = 20 // 默认每页20条
+	}
+	if pageSize > 100 {
+		pageSize = 100 // 最大每页100条
+	}
+	if pageNum <= 0 {
+		pageNum = 1 // 默认第1页
+	}
 	uc.log.WithContext(ctx).Infof("List TwitterAccounts: pageSize=%v, pageNum=%v, status=%v", pageSize, pageNum, status)
+
 	return uc.repo.List(ctx, pageSize, pageNum, status)
+}
+
+// GetAndLockTwitterAccounts 获取并锁定多个可用的Twitter账号
+func (uc *TwitterAccountUsecase) GetAndLockTwitterAccounts(ctx context.Context, count int, lockSeconds int) ([]*TwitterAccount, error) {
+	// 设置默认值
+	if count <= 0 {
+		count = 1 // 默认获取1个账号
+	}
+	if count > 100 {
+		count = 20 // 最大获取20个账号
+	}
+	if lockSeconds <= 0 {
+		lockSeconds = 60 // 默认锁定60秒
+	}
+	if lockSeconds > 600 {
+		lockSeconds = 600 // 最大锁定600秒
+	}
+	uc.log.WithContext(ctx).Infof("GetAndLockTwitterAccounts: count=%v, lockSeconds=%v", count, lockSeconds)
+
+	return uc.repo.GetAndLockTwitterAccounts(ctx, count, lockSeconds)
+}
+
+// UnlockTwitterAccounts 解锁指定的Twitter账号
+func (uc *TwitterAccountUsecase) UnlockTwitterAccounts(ctx context.Context, ids []uint) error {
+	uc.log.WithContext(ctx).Infof("UnlockTwitterAccounts: ids=%v", ids)
+	return uc.repo.UnlockTwitterAccounts(ctx, ids)
 }

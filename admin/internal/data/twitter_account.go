@@ -27,14 +27,14 @@ type TwitterAccount struct {
 	UpdatedAt time.Time      `gorm:"not null;default:CURRENT_TIMESTAMP"`
 	DeletedAt gorm.DeletedAt `gorm:"index"`
 
-	Username  string        `gorm:"type:varchar(255);not null;uniqueIndex"`
+	Username  string        `gorm:"type:varchar(255);not null;uniqueIndex:idx_username,where:deleted_at IS NULL"`
 	Email     string        `gorm:"type:varchar(255);not null;default:'';index"`
 	Phone     string        `gorm:"type:varchar(20);not null;default:'';index"`
 	Password  string        `gorm:"type:varchar(255);not null"`
 	AuthToken string        `gorm:"type:text"`
 	CsrfToken string        `gorm:"type:text"`
 	Cookie    string        `gorm:"type:text"`
-	Status    AccountStatus `gorm:"type:varchar(20);not null;default:'normal'"`
+	Status    AccountStatus `gorm:"type:varchar(20);not null;default:'normal';index"`
 }
 
 // TableName specifies the table name for TwitterAccount

@@ -45,12 +45,18 @@ func (s *TwitterAccountService) CreateTwitterAccount(ctx context.Context, req *v
 	}
 
 	return &v1.CreateTwitterAccountReply{
-		Id:        int64(result.ID),
-		Username:  result.Username,
-		Email:     result.Email,
-		Phone:     result.Phone,
-		Status:    result.Status,
-		CreatedAt: result.CreatedAt.Format(time.RFC3339),
+		Account: &v1.TwitterAccountInfo{
+			Id:        int64(result.ID),
+			Username:  result.Username,
+			Email:     result.Email,
+			Phone:     result.Phone,
+			AuthToken: result.AuthToken,
+			CsrfToken: result.CsrfToken,
+			Cookie:    result.Cookie,
+			Status:    result.Status,
+			CreatedAt: result.CreatedAt.Format(time.RFC3339),
+			UpdatedAt: result.UpdatedAt.Format(time.RFC3339),
+		},
 	}, nil
 }
 
@@ -78,6 +84,9 @@ func (s *TwitterAccountService) UpdateTwitterAccount(ctx context.Context, req *v
 		Username:  result.Username,
 		Email:     result.Email,
 		Phone:     result.Phone,
+		AuthToken: result.AuthToken,
+		CsrfToken: result.CsrfToken,
+		Cookie:    result.Cookie,
 		Status:    result.Status,
 		UpdatedAt: result.UpdatedAt.Format(time.RFC3339),
 	}, nil
@@ -103,16 +112,18 @@ func (s *TwitterAccountService) GetTwitterAccount(ctx context.Context, req *v1.G
 	}
 
 	return &v1.GetTwitterAccountReply{
-		Id:        int64(account.ID),
-		Username:  account.Username,
-		Email:     account.Email,
-		Phone:     account.Phone,
-		AuthToken: account.AuthToken,
-		CsrfToken: account.CsrfToken,
-		Cookie:    account.Cookie,
-		Status:    account.Status,
-		CreatedAt: account.CreatedAt.Format(time.RFC3339),
-		UpdatedAt: account.UpdatedAt.Format(time.RFC3339),
+		Account: &v1.TwitterAccountInfo{
+			Id:        int64(account.ID),
+			Username:  account.Username,
+			Email:     account.Email,
+			Phone:     account.Phone,
+			AuthToken: account.AuthToken,
+			CsrfToken: account.CsrfToken,
+			Cookie:    account.Cookie,
+			Status:    account.Status,
+			CreatedAt: account.CreatedAt.Format(time.RFC3339),
+			UpdatedAt: account.UpdatedAt.Format(time.RFC3339),
+		},
 	}, nil
 }
 
@@ -133,6 +144,9 @@ func (s *TwitterAccountService) ListTwitterAccounts(ctx context.Context, req *v1
 			Username:  account.Username,
 			Email:     account.Email,
 			Phone:     account.Phone,
+			AuthToken: account.AuthToken,
+			CsrfToken: account.CsrfToken,
+			Cookie:    account.Cookie,
 			Status:    account.Status,
 			CreatedAt: account.CreatedAt.Format(time.RFC3339),
 			UpdatedAt: account.UpdatedAt.Format(time.RFC3339),
@@ -140,4 +154,51 @@ func (s *TwitterAccountService) ListTwitterAccounts(ctx context.Context, req *v1
 	}
 
 	return result, nil
+}
+
+// LockTwitterAccounts 获取并锁定多个Twitter账号
+func (s *TwitterAccountService) LockTwitterAccounts(ctx context.Context, req *v1.LockTwitterAccountsRequest) (*v1.LockTwitterAccountsReply, error) {
+	accounts, err := s.uc.GetAndLockTwitterAccounts(ctx, int(req.Count), int(req.LockSeconds))
+	if err != nil {
+		return nil, err
+	}
+
+	reply := &v1.LockTwitterAccountsReply{
+		LockSeconds: int32(req.LockSeconds),
+	}
+
+	for _, account := range accounts {
+		reply.Accounts = append(reply.Accounts, &v1.TwitterAccountInfo{
+			Id:        int64(account.ID),
+			Username:  account.Username,
+			Email:     account.Email,
+			Phone:     account.Phone,
+			AuthToken: account.AuthToken,
+			CsrfToken: account.CsrfToken,
+			Cookie:    account.Cookie,
+			Status:    account.Status,
+			CreatedAt: account.CreatedAt.Format(time.RFC3339),
+			UpdatedAt: account.UpdatedAt.Format(time.RFC3339),
+		})
+	}
+
+	return reply, nil
+}
+
+// UnlockTwitterAccounts 解锁指定的Twitter账号
+func (s *TwitterAccountService) UnlockTwitterAccounts(ctx context.Context, req *v1.UnlockTwitterAccountsRequest) (*v1.UnlockTwitterAccountsReply, error) {
+	ids := make([]uint, len(req.Ids))
+	for i, id := range req.Ids {
+		ids[i] = uint(id)
+	}
+
+	err := s.uc.UnlockTwitterAccounts(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+
+	return &v1.UnlockTwitterAccountsReply{
+		Success:       true,
+		UnlockedCount: int32(len(ids)),
+	}, nil
 }
