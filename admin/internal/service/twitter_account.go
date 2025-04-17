@@ -158,13 +158,13 @@ func (s *TwitterAccountService) ListTwitterAccounts(ctx context.Context, req *v1
 
 // LockTwitterAccounts 获取并锁定多个Twitter账号
 func (s *TwitterAccountService) LockTwitterAccounts(ctx context.Context, req *v1.LockTwitterAccountsRequest) (*v1.LockTwitterAccountsReply, error) {
-	accounts, err := s.uc.GetAndLockTwitterAccounts(ctx, int(req.Count), int(req.LockSeconds))
+	accounts, lockSeconds, err := s.uc.GetAndLockTwitterAccounts(ctx, int(req.Count), int(req.LockSeconds))
 	if err != nil {
 		return nil, err
 	}
 
 	reply := &v1.LockTwitterAccountsReply{
-		LockSeconds: int32(req.LockSeconds),
+		LockSeconds: int32(lockSeconds),
 	}
 
 	for _, account := range accounts {

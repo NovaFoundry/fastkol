@@ -156,7 +156,7 @@ func (uc *TwitterAccountUsecase) List(ctx context.Context, pageSize, pageNum int
 }
 
 // GetAndLockTwitterAccounts 获取并锁定多个可用的Twitter账号
-func (uc *TwitterAccountUsecase) GetAndLockTwitterAccounts(ctx context.Context, count int, lockSeconds int) ([]*TwitterAccount, error) {
+func (uc *TwitterAccountUsecase) GetAndLockTwitterAccounts(ctx context.Context, count int, lockSeconds int) ([]*TwitterAccount, int, error) {
 	// 设置默认值
 	if count <= 0 {
 		count = 1 // 默认获取1个账号
@@ -172,7 +172,12 @@ func (uc *TwitterAccountUsecase) GetAndLockTwitterAccounts(ctx context.Context, 
 	}
 	uc.log.WithContext(ctx).Infof("GetAndLockTwitterAccounts: count=%v, lockSeconds=%v", count, lockSeconds)
 
-	return uc.repo.GetAndLockTwitterAccounts(ctx, count, lockSeconds)
+	accounts, err := uc.repo.GetAndLockTwitterAccounts(ctx, count, lockSeconds)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return accounts, lockSeconds, nil
 }
 
 // UnlockTwitterAccounts 解锁指定的Twitter账号
