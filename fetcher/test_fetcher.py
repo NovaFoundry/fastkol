@@ -5,7 +5,7 @@ import logging
 import json
 import traceback
 from app.fetchers.twitter import TwitterFetcher
-
+from app.fetchers.instagram import InstagramFetcher
 # 添加项目根目录到 Python 路径
 current_dir = os.path.abspath(os.path.dirname(__file__))
 sys.path.insert(0, current_dir)
@@ -26,6 +26,8 @@ async def test_fetcher(platform, action, params):
         # 根据平台创建爬虫实例
         if platform == "twitter":
             fetcher = TwitterFetcher()
+        elif platform == "instagram":
+            fetcher = InstagramFetcher()
         else:
             raise ValueError(f"不支持的平台: {platform}")
         
@@ -71,15 +73,15 @@ async def test_fetcher(platform, action, params):
     
     finally:
         # 清理资源
-        fetcher.cleanup()
+        await fetcher.cleanup()
 
 if __name__ == "__main__":
     # 示例: 测试 Twitter 爬虫
-    platform = "twitter"
-    action = "find_users_by_search"  # 修改为测试搜索用户
+    platform = "instagram"
+    action = "find_similar_users"  # 修改为测试搜索用户
     params = {
-        "query": "关税",  # 搜索关键词
-        "count": 200  # 要获取的用户数量
+        "username": "btccbitcoin",  # 搜索关键词
+        "count": 10  # 要获取的用户数量
     }
     
     logger.info(f"开始测试: 平台={platform}, 操作={action}, 参数={params}")
