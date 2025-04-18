@@ -10,6 +10,7 @@ from playwright.async_api import Page
 import urllib.parse
 import aiohttp
 import os
+from app.core.service_discovery import ServiceDiscovery
 
 from app.settings import settings
 
@@ -26,6 +27,9 @@ class TwitterFetcher(BaseFetcher):
         self.page = None
         self.browser = None
         self.logger = logger  # Ensure logger is properly set
+        # 初始化时获取Twitter认证信息
+        self.twitter_accounts = []  # 所有Twitter账号
+        self.selected_twitter_account = {}
     
     def _load_config(self):
         """加载 Twitter API 配置"""
@@ -40,7 +44,6 @@ class TwitterFetcher(BaseFetcher):
             # 获取 Twitter API 配置
             twitter_config = settings.get_config('twitter', {})
             self.api_endpoints = twitter_config.get('endpoints', {})
-            self.auth_params = twitter_config.get('auth_params', {})
             self.logger.info("成功加载 Twitter配置")
         except Exception as e:
             self.logger.error(f"加载配置失败: {str(e)}")
@@ -59,8 +62,11 @@ class TwitterFetcher(BaseFetcher):
     async def fetch_user_profile(self, username: str) -> Dict[str, Any]:
         """获取用户主页信息"""
         self.logger.info(f"获取 Twitter 用户资料: {username}")
+        if not await self.select_twitter_account():
+            self.logger.error("未选择Twitter账号，无法获取用户资料")
+            return {}
         
-        try:
+        try:    
             # 准备 API 请求参数
             variables = {
                 "screen_name": username,
@@ -83,9 +89,9 @@ class TwitterFetcher(BaseFetcher):
             }
             # 准备请求头
             headers = {
-                "authorization": self.auth_params.get('auth_token'),
-                "x-csrf-token": self.auth_params.get('csrf_token'),
-                "cookie": self.auth_params.get('cookie'),
+                "authorization": self.selected_twitter_account.get('authToken', ''),
+                "x-csrf-token": self.selected_twitter_account.get('csrfToken', ''),
+                "cookie": self.selected_twitter_account.get('cookie', ''),
                 "user-agent": self.user_agent,
                 "content-type": "application/json",
                 "x-twitter-active-user": "yes",
@@ -257,8 +263,12 @@ class TwitterFetcher(BaseFetcher):
             Tuple[bool, str, List[Dict[str, Any]]]: 是否成功获取用户资料, msg, 相似用户列表
         """
         self.logger.info(f"查找与 {username} 相似的 Twitter 用户，数量: {count}")
+
+        if not await self.select_twitter_account():
+            self.logger.error("未选择Twitter账号，无法查找相似用户")
+            return (False, "未选择Twitter账号", [])
         
-        try:
+        try:    
             # 如果没有提供 uid，先获取用户资料以获取 uid
             if not uid:
                 self.logger.info(f"未提供 uid，尝试获取用户 {username} 的资料以获取 uid")
@@ -356,9 +366,9 @@ class TwitterFetcher(BaseFetcher):
         try:
             # 准备 API 请求头
             headers = {
-                "authorization": self.auth_params.get('auth_token'),
-                "x-csrf-token": self.auth_params.get('csrf_token'),
-                "cookie": self.auth_params.get('cookie'),
+                "authorization": self.selected_twitter_account.get('authToken', ''),
+                "x-csrf-token": self.selected_twitter_account.get('csrfToken', ''),
+                "cookie": self.selected_twitter_account.get('cookie', ''),
                 "user-agent": self.user_agent,
                 "content-type": "application/json",
                 "x-twitter-active-user": "yes",
@@ -531,9 +541,9 @@ class TwitterFetcher(BaseFetcher):
         try:
             # 准备 API 请求头
             headers = {
-                "authorization": self.auth_params.get('auth_token'),
-                "x-csrf-token": self.auth_params.get('csrf_token'),
-                "cookie": self.auth_params.get('cookie'),
+                "authorization": self.selected_twitter_account.get('authToken', ''),
+                "x-csrf-token": self.selected_twitter_account.get('csrfToken', ''),
+                "cookie": self.selected_twitter_account.get('cookie', ''),
                 "user-agent": self.user_agent,
                 "content-type": "application/json",
                 "x-twitter-active-user": "yes",
@@ -702,6 +712,10 @@ class TwitterFetcher(BaseFetcher):
         """
         self.logger.info(f"搜索用户: {query}, 数量: {count}")
         
+        if not await self.select_twitter_account():
+            self.logger.error("未选择Twitter账号，无法搜索用户")
+            return (False, "未选择Twitter账号", []) 
+        
         try:
             # 存储所有获取的用户
             all_users = []
@@ -769,9 +783,9 @@ class TwitterFetcher(BaseFetcher):
         try:
             # 准备 API 请求头
             headers = {
-                "authorization": self.auth_params.get('auth_token'),
-                "x-csrf-token": self.auth_params.get('csrf_token'),
-                "cookie": self.auth_params.get('cookie'),
+                "authorization": self.selected_twitter_account.get('authToken', ''),
+                "x-csrf-token": self.selected_twitter_account.get('csrfToken', ''),
+                "cookie": self.selected_twitter_account.get('cookie', ''),
                 "user-agent": self.user_agent,
                 "content-type": "application/json",
                 "x-twitter-active-user": "yes",
@@ -910,3 +924,99 @@ class TwitterFetcher(BaseFetcher):
             import traceback
             self.logger.error(traceback.format_exc())
             return ([], None)
+
+    async def _get_twitter_acounts_from_admin_service(self) -> bool:
+        """通过服务发现获取admin-service-http的IP和端口，然后发送POST请求获取Twitter账号
+        
+        Returns:
+            Dict[str, str]: 包含authToken、csrfToken和cookie的字典
+        """
+        if self.twitter_accounts:
+            return True
+
+        try:
+            self.logger.info("正在通过服务发现获取Twitter认证信息...")
+
+            # 使用ServiceDiscovery发送POST请求到admin-service-http
+            response = await ServiceDiscovery.post(
+                service_name="admin-service-http",
+                path="/v1/twitter/accounts/lock",
+                json={}  # 如果需要请求体，可以在这里添加
+            )
+            
+            # 检查响应是否成功
+            if response and response.get('accounts', []) and len(response.get('accounts', [])) > 0:
+                self.twitter_accounts = response.get('accounts', [])
+                self.logger.info(f"成功获取Twitter账号, 数量: {len(self.twitter_accounts)}")
+                return True
+            else:
+                self.logger.error(f"获取Twitter账号失败: 响应格式不正确")
+                return False
+                
+        except Exception as e:
+            self.logger.error(f"获取Twitter账号时发生错误: {str(e)}")
+            import traceback
+            self.logger.error(traceback.format_exc())
+            return False
+
+    async def select_twitter_account(self) -> bool:
+        """选择一个Twitter账号
+        
+        Returns:
+            Dict[str, str]: 包含authToken、csrfToken和cookie的字典
+        """
+        try:
+            
+            # 如果已经有认证信息，则不需要重新获取
+            if self.selected_twitter_account:
+                self.logger.info("已有Twitter账号，无需重新获取")
+                return True
+                
+            # 从admin-service-http获取认证信息
+            await self._get_twitter_acounts_from_admin_service()
+            if self.twitter_accounts:
+                self.selected_twitter_account = self.twitter_accounts[0]
+                self.logger.info(f"成功选择Twitter账号: {self.selected_twitter_account.get('username')}")
+                return True
+            else:
+                self.logger.error("获取Twitter账号失败")
+                return False
+                
+        except Exception as e:
+            self.logger.error(f"选择Twitter账号时发生错误: {str(e)}")
+            import traceback
+            self.logger.error(traceback.format_exc())
+            return False
+        
+    async def _clear_twitter_accounts(self) -> bool:
+        if not self.twitter_accounts:
+            return True
+        try:
+            ids = [account.get("id") for account in self.twitter_accounts]
+            # 使用ServiceDiscovery发送POST请求到admin-service-http
+            response = await ServiceDiscovery.post(
+                service_name="admin-service-http",
+                path="/v1/twitter/accounts/unlock",
+                json={"ids": ids}  # 如果需要请求体，可以在这里添加
+            )
+            if response.get("success", False):
+                self.twitter_accounts = []
+                self.logger.info("成功清理Twitter账号")
+                return True
+            else:
+                self.logger.error("清理Twitter账号失败")
+                return False
+        
+        except Exception as e:
+            self.logger.error(f"清理Twitter账号时发生错误: {str(e)}")
+            import traceback
+            self.logger.error(traceback.format_exc())
+            return False
+            
+    async def cleanup(self):
+        await super().cleanup()
+        """清理Twitter账号"""
+        self.logger.info("清理Twitter账号...")
+        await self._clear_twitter_accounts()
+        self.selected_twitter_account = {}
+        self.logger.info("资源清理完成")

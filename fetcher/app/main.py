@@ -184,9 +184,6 @@ async def health_check():
     # 检查 Nacos 服务状态
     nacos_status = "healthy" if nacos_client.get_is_initialized() else "unhealthy"
     
-    # 获取服务实例信息
-    service_info = nacos_client.get_service_instances(service_name='admin-service-http', group_name=settings.get_nacos_group())
-    
     # 检查数据库连接
     try:
         async with SessionLocal() as session:
@@ -209,7 +206,6 @@ async def health_check():
         "components": {
             "nacos": {
                 "status": nacos_status,
-                "service_info": service_info
             },
             "database": {
                 "status": db_status

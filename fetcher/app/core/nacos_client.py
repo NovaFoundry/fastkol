@@ -1,5 +1,6 @@
 import os
 import logging
+import random
 from typing import Any, Dict, Optional, Callable
 import yaml
 import nacos
@@ -77,17 +78,6 @@ class NacosClient:
             logger.error(f"Failed to deregister service: {e}")
             return False
             
-    def get_service_instances(self, service_name: str, group_name: str = "DEFAULT_GROUP") -> list:
-        """获取服务实例列表"""
-        if not self.client or not settings.get_nacos_enabled():
-            return []
-            
-        try:
-            return self.client.list_naming_instance(service_name=service_name, group_name=group_name)
-        except Exception as e:
-            logger.error(f"Failed to get service instances: {e}")
-            return []
-            
     def get_config(self, data_id: str, group: str = "DEFAULT_GROUP") -> str:
         """获取配置"""
         if not self.client or not settings.get_nacos_enabled():
@@ -127,6 +117,51 @@ class NacosClient:
     def get_is_initialized(self) -> bool:
         """获取 Nacos 是否已初始化"""
         return self.client is not None
+
+    def get_service_instance(self, service_name: str, group_name: str = "DEFAULT_GROUP") -> Optional[Dict[str, Any]]:
+        """获取一个可用的服务实例
+        
+        Args:
+            service_name: 服务名称
+            group_name: 分组名称
+            
+        Returns:
+            服务实例信息，包含 ip 和 port
+        """
+        if not self.client or not settings.get_nacos_enabled():
+            return None
+            
+        try:
+            instances = self.client.list_naming_instance(service_name=service_name, group_name=group_name)
+            if not instances or not instances.get('hosts'):
+                logger.warning(f"No instances found for service {service_name}")
+                return None
+                
+            # 使用随机策略选择实例
+            instance = random.choice(instances['hosts'])
+            return {
+                "ip": instance["ip"],
+                "port": instance["port"]
+            }
+        except Exception as e:
+            logger.error(f"Failed to get service instance: {e}")
+            return None
+
+    def get_service_url(self, service_name: str, group_name: str = "DEFAULT_GROUP") -> Optional[str]:
+        """获取服务的基础URL
+        
+        Args:
+            service_name: 服务名称
+            group_name: 分组名称
+            
+        Returns:
+            服务的基础URL，例如 "http://127.0.0.1:8080"
+        """
+        instance = self.get_service_instance(service_name, group_name)
+        if not instance:
+            return None
+            
+        return f"http://{instance['ip']}:{instance['port']}"
 
 # 创建全局 Nacos 实例
 nacos_client = NacosClient() 
