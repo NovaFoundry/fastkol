@@ -225,7 +225,7 @@ class TwitterFetcher(BaseFetcher):
                 bio_hashtags = []
             
             # 获取用户最近的推文
-            tweets = await self.fetch_user_tweets(username, count=50, uid=uid)
+            tweets = await self.fetch_user_tweets(username=username, count=20, uid=uid)
             
             # 从推文中提取 hashtag
             tweet_hashtags = []

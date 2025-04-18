@@ -35,7 +35,7 @@ async def test_fetcher(platform, action, params):
             count = params.get("count", 200)
             uid = params.get("uid")
             logger.info(f"查找与 {username} 相似的用户，数量: {count}, uid: {uid}")
-            success, msg, result = await fetcher.find_similar_users(username, count, uid)
+            _, _, result = await fetcher.find_similar_users(username, count, uid)
         elif action == "find_users_by_search":
             query = params.get("query")
             count = params.get("count", 20)
@@ -71,10 +71,7 @@ async def test_fetcher(platform, action, params):
     
     finally:
         # 清理资源
-        if fetcher and fetcher.browser:
-            logger.info("关闭浏览器...")
-            await fetcher.close_browser()
-            logger.info("浏览器已关闭")
+        fetcher.cleanup()
 
 if __name__ == "__main__":
     # 示例: 测试 Twitter 爬虫
