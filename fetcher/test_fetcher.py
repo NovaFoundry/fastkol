@@ -81,7 +81,7 @@ if __name__ == "__main__":
     action = "find_similar_users"  # 修改为测试搜索用户
     params = {
         "username": "btccbitcoin",  # 搜索关键词
-        "count": 10  # 要获取的用户数量
+        "count": 100  # 要获取的用户数量
     }
     
     logger.info(f"开始测试: 平台={platform}, 操作={action}, 参数={params}")

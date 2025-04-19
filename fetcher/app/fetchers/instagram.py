@@ -268,6 +268,7 @@ class InstagramFetcher(BaseFetcher):
         Args:
             username (str): 用户名
             count (int): 要获取的相似用户数量
+            uid (str, optional): 用户ID，如果提供则使用此ID查找相似用户
         
         Returns:
             Tuple[bool, str, List[Dict[str, Any]]]: 是否成功获取用户资料, msg, 相似用户列表
@@ -291,12 +292,79 @@ class InstagramFetcher(BaseFetcher):
         self.logger.info(f"获取用户ID成功: {uid}")
         
         try:
-             # 构建请求 URL
+            # 用字典来存储用户ID及其出现次数，用于去重和排序
+            user_frequency_map = {}
+            all_similar_users = []
+            
+            # 步骤1: 获取第一层相似用户
+            first_level_users = await self._find_similar_users_by_uid(uid)
+            self.logger.info(f"获取到第一层相似用户: {len(first_level_users)} 个")
+
+            if len(first_level_users) >= count:
+                all_similar_users = first_level_users[:count]
+                return (True, "success", all_similar_users)
+            
+            # 添加第一层用户并记录其 UID
+            for user in first_level_users:
+                user_uid = user["uid"]
+                if user_uid not in user_frequency_map:
+                    user_frequency_map[user_uid] = 1
+                    all_similar_users.append(user)
+                else:
+                    user_frequency_map[user_uid] += 1
+            
+            # 步骤2: 获取第二层相似用户
+            second_level_users = []
+            
+            # 顺序处理每个第一层用户
+            for first_level_user in first_level_users:
+                if first_level_user["uid"]:
+                    # 顺序请求每个用户的相似用户
+                    users = await self._find_similar_users_by_uid(first_level_user["uid"])
+                    self.logger.info(f"获取到{first_level_user['username']}第二层相似用户: {len(users)} 个")
+                    if not isinstance(users, list) or not users:  # 确保结果是有效的
+                        continue
+                    
+                    # 更新用户频率并添加到第二层用户列表
+                    for user in users:
+                        user_uid = user["uid"]
+                        if user_uid not in user_frequency_map:
+                            user_frequency_map[user_uid] = 1
+                            second_level_users.append(user)
+                        else:
+                            user_frequency_map[user_uid] += 1
+
+                    if len(user_frequency_map) >= count:
+                        break
+                    
+                    await asyncio.sleep(random.uniform(1, 3))
+            
+            # 根据用户出现频率排序
+            sorted_users = first_level_users + sorted(second_level_users, key=lambda x: user_frequency_map.get(x["uid"], 0), reverse=True)
+            
+            # 确保返回数量不超过请求数量
+            return (True, "success", sorted_users[:count])
+            
+        except Exception as e:
+            self.logger.error(f"查找相似用户失败: {str(e)}")
+            return (False, str(e), [])
+
+    async def _find_similar_users_by_uid(self, uid: str) -> List[Dict[str, Any]]:
+        """通过用户ID获取相似用户
+        
+        Args:
+            uid (str): 用户ID
+        
+        Returns:
+            List[Dict[str, Any]]: 相似用户列表
+        """
+        try:
+            # 构建请求 URL
             url = self.api_endpoints.get("similar_users", {}).get("url")
             doc_id = self.api_endpoints.get("similar_users", {}).get("doc_id")
             if not url:
                 self.logger.error("无法获取 similar_users API 端点")
-                return (False, "API端点未配置", [])
+                return []
             
             # 准备 API 请求头
             headers = {
@@ -345,15 +413,13 @@ class InstagramFetcher(BaseFetcher):
                 uid = user.get("pk", "")
                 user_data = await self.fetch_user_profile(uid)
                 similar_users.append(user_data)
-                if len(similar_users) >= count:
-                    break
-                await self._random_delay(2,5)
+                # await asyncio.sleep(1)
                 
-            return (True, "success", similar_users[:count])
+            return similar_users
             
         except Exception as e:
-            self.logger.error(f"查找相似用户失败: {str(e)}")
-            return (False, str(e), [])
+            self.logger.error(f"获取相似用户失败: {str(e)}")
+            return []
 
     async def _get_instagram_accounts_from_admin_service(self) -> bool:
         """通过服务发现获取admin-service-http的IP和端口，然后发送POST请求获取Instagram账号
