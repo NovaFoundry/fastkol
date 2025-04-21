@@ -123,6 +123,8 @@ async def run_similar_fetcher(platform, params) -> Tuple[bool, str, List[Dict[st
     # 根据平台创建爬虫实例
     if platform == "twitter":
         fetcher = TwitterFetcher()
+    elif platform == "instagram":
+        fetcher = InstagramFetcher()
     else:
         raise ValueError(f"不支持的平台: {platform}")
 
@@ -144,6 +146,8 @@ async def run_search_fetcher(platform, params) -> Tuple[bool, str, List[Dict[str
     # 根据平台创建爬虫实例
     if platform == "twitter":
         fetcher = TwitterFetcher()
+    elif platform == "instagram":
+        fetcher = InstagramFetcher()
     else:
         raise ValueError(f"不支持的平台: {platform}")
 

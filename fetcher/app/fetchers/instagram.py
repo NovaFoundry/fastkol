@@ -412,6 +412,8 @@ class InstagramFetcher(BaseFetcher):
             for user in users:
                 uid = user.get("pk", "")
                 user_data = await self.fetch_user_profile(uid)
+                if not user_data:
+                    continue
                 similar_users.append(user_data)
                 # await asyncio.sleep(1)
                 
@@ -516,3 +518,156 @@ class InstagramFetcher(BaseFetcher):
         # await self._clear_instagram_accounts()
         self.selected_instagram_account = {}
         self.logger.info("资源清理完成") 
+
+    async def find_users_by_search(self, query: str, count: int = 20) -> Tuple[bool, str, List[Dict[str, Any]]]:
+        """搜索用户
+        
+        Args:
+            query (str): 搜索关键词
+            count (int): 要获取的用户数量
+            
+        Returns:
+            Tuple[bool, str, List[Dict[str, Any]]]: 成功状态，msg，用户列表
+        """
+        self.logger.info(f"搜索用户: {query}, 数量: {count}")
+        
+        if not await self.select_instagram_account():
+            self.logger.error("未选择Instagram账号，无法搜索用户")
+            return (False, "未选择Instagram账号", []) 
+        
+        try:
+            # 存储所有获取的用户
+            all_users = []
+            # 用于去重的用户ID集合
+            processed_uids = set()
+            # 记录连续没有新数据的次数
+            no_new_data_count = 0
+            # 上一次获取的用户数量
+            last_user_count = 0
+
+            rank_token = None
+            next_max_id = None
+            
+            self.logger.info(f"获取用户: {len(processed_uids)}/{count}")
+            # 循环获取用户，直到达到请求的数量或没有更多用户
+            while len(processed_uids) < count:
+                # 使用新的方法获取用户
+                users, rank_token, next_max_id = await self._find_users_by_search(query, rank_token, next_max_id)
+
+                for user in users:
+                    uid = user.get("uid")
+                    if uid and uid not in processed_uids:
+                        processed_uids.add(uid)
+                        all_users.append(user)
+
+                self.logger.info(f"获取用户: {len(processed_uids)}/{count}")
+
+                if len(processed_uids) == last_user_count:
+                    no_new_data_count += 1
+                else:
+                    no_new_data_count = 0
+                    last_user_count = len(processed_uids)
+                
+                # 如果已经达到请求的数量，退出循环
+                if len(all_users) >= count:
+                    break
+
+                if no_new_data_count >= 3:
+                    self.logger.info("连续3次没有获取到新数据，停止搜索")
+                    break
+                
+                # 添加随机延迟，避免请求过于频繁
+                await self._random_delay(2, 5)
+            
+            # 确保返回数量不超过请求数量
+            return (True, "success", all_users[:count])
+            
+        except Exception as e:
+            error_msg = f"搜索用户失败: {str(e)}"
+            self.logger.error(error_msg)
+            import traceback
+            self.logger.error(traceback.format_exc())
+            return (False, error_msg, [])
+
+    async def _find_users_by_search(self, query: str, rank_token: str = None, next_max_id: str = None) -> Tuple[List[Dict[str, Any]], str, str]:
+        """通过搜索获取用户
+        
+        Args:
+            query (str): 搜索关键词
+            rank_token (str, optional): 排名令牌
+            next_max_id (str, optional): 下一页ID
+            
+        Returns:
+            Tuple[List[Dict[str, Any]], str, str]: 用户列表，排名令牌，下一页ID
+        """
+        try:
+            # 构建请求 URL
+            url = self.api_endpoints.get("top_serp", {}).get("url")
+            if not url:
+                self.logger.error("无法获取 top_serp API 端点")
+                return []
+            
+            # 准备 API 请求头
+            headers = {
+                "User-Agent": self.user_agent,
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+                "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8,zh-TW;q=0.7",
+                "x-ig-app-id": "936619743392459",
+                "x-csrftoken": self.selected_instagram_account.get('csrfToken', ''),
+                "cookie": self.selected_instagram_account.get('cookie', ''),
+            }
+            
+            # 准备请求参数
+            params = {
+                "enable_metadata": "true",
+                "query": query,
+            }
+            if rank_token:
+                params["rank_token"] = rank_token
+            if next_max_id:
+                params["next_max_id"] = next_max_id
+            
+            # 设置代理
+            proxy = None
+            if self.proxy_enabled and self.proxy_url:
+                proxy = self.proxy_url
+            
+            # 发送请求
+            timeout = aiohttp.ClientTimeout(total=30)
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                request_kwargs = {"headers": headers, "params": params}
+                if proxy:
+                    request_kwargs["proxy"] = proxy
+                
+                async with session.get(url, **request_kwargs) as response:
+                    response_data = await response.json()
+            
+            # 解析响应数据
+            rank_token = response_data.get('media_grid', {}).get("rank_token")
+            next_max_id = response_data.get('media_grid', {}).get("next_max_id")
+            users = []
+            sections = response_data.get('media_grid', {}).get("sections", [])
+            
+            for section in sections:
+                medias = section.get('layout_content', {}).get("medias", [])
+                if not medias:
+                    continue
+                for media in medias:
+                    user = media.get('media', {}).get('user')
+                    if not user or not user.get('pk'):
+                        continue
+                
+                    uid = user.get('pk')
+                    user_data = await self.fetch_user_profile(uid)
+                    if not user_data:
+                        continue
+
+                    users.append(user_data)
+
+            return users, rank_token, next_max_id
+            
+        except Exception as e:
+            self.logger.error(f"获取搜索用户失败: {str(e)}")
+            import traceback
+            self.logger.error(traceback.format_exc())
+            return []
