@@ -68,5 +68,23 @@ message Registry {
     Client client = 1;
     Service service = 2;
   }
+
+  message Consul {
+    message Server {
+      string host = 1;
+      int32 port = 2;
+      string scheme = 3;
+      string token = 4;
+      string datacenter = 5;
+    }
+    message Service {
+      repeated string tags = 1;
+      map<string, string> metadata = 2;
+    }
+    Server server = 1;
+    Service service = 2;
+  }
+
   Nacos nacos = 1;
+  Consul consul = 2;
 }
