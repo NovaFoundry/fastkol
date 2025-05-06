@@ -73,6 +73,8 @@ services:
       - "8600:8600/udp"  # Consul DNS
     volumes:
       - consul_data:/consul/data
+      - ./consul/policy:/consul/policy
+      - ./consul/create-consul-tokens.sh:/consul/create-consul-tokens.sh
     environment:
       - CONSUL_BIND_INTERFACE=eth0
       - CONSUL_LOCAL_CONFIG={"acl":{"enabled":true,"default_policy":"allow","down_policy":"extend-cache","tokens":{"master":"${CONSUL_MASTER_TOKEN}"}}}
