@@ -17,6 +17,7 @@ from app.db.operations import init_db, update_fetch_task, SessionLocal, get_fetc
 from app.fetchers.twitter import TwitterFetcher
 from app.core.config_manager import config_manager
 from app.core.nacos_client import nacos_client
+from app.core.consul_client import consul_client
 from app.celery_app import app as celery_app
 from celery.result import AsyncResult
 from app.db.operations import create_fetch_task
@@ -48,6 +49,14 @@ async def lifespan(app: FastAPI):
         logger.info("Registering service to Nacos...")
         if not nacos_client.register_service():
             logger.warning("Failed to register service to Nacos")
+            
+        # 注册服务到 Consul
+        logger.info("Registering service to Consul...")
+        try:
+            consul_client.register_service()
+            logger.info("Successfully registered service to Consul")
+        except Exception as e:
+            logger.error(f"Failed to register service to Consul: {e}")
         
         # 初始化数据库连接
         logger.info("Initializing database connection...")
@@ -65,6 +74,14 @@ async def lifespan(app: FastAPI):
         # 注销 Nacos 服务
         logger.info("Deregistering service from Nacos...")
         nacos_client.deregister_service()
+        
+        # 注销 Consul 服务
+        logger.info("Deregistering service from Consul...")
+        try:
+            consul_client.deregister_service()
+            logger.info("Successfully deregistered service from Consul")
+        except Exception as e:
+            logger.error(f"Failed to deregister service from Consul: {e}")
 
 # 创建 FastAPI 应用
 app = FastAPI(
