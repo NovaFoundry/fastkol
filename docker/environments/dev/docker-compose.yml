@@ -65,6 +65,22 @@ services:
     networks:
       - graph-weaver_network
 
+  consul:
+    image: consul:1.15
+    container_name: consul
+    ports:
+      - "8500:8500"      # Consul Web UI 和 HTTP API
+      - "8600:8600/udp"  # Consul DNS
+    volumes:
+      - consul_data:/consul/data
+    environment:
+      - CONSUL_BIND_INTERFACE=eth0
+      - CONSUL_LOCAL_CONFIG={"acl":{"enabled":true,"default_policy":"allow","down_policy":"extend-cache","tokens":{"master":"${CONSUL_MASTER_TOKEN}"}}}
+    command: agent -server -bootstrap-expect=1 -bootstrap -ui -client=0.0.0.0 -data-dir=/consul/data
+    networks:
+      - graph-weaver_network
+    restart: unless-stopped
+
 networks:
   graph-weaver_network:
     driver: bridge
@@ -74,3 +90,5 @@ volumes:
   rabbitmq:
   redis_data:
   rnacos_data:
+  traefik_data:
+  consul_data:
