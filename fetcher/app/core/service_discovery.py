@@ -1,13 +1,14 @@
 from typing import Optional, Dict, Any
 import aiohttp
-from app.core.nacos_client import nacos_client
+import json
+from app.core.consul_client import consul_client
 from app.settings import settings
 
 class ServiceDiscovery:
     """服务发现工具类"""
     
     @staticmethod
-    async def get_service_url(service_name: str) -> Optional[str]:
+    async def get_service_url(service_name: str, protocol: str = 'http') -> Optional[str]:
         """获取服务的基础URL
         
         Args:
@@ -16,10 +17,25 @@ class ServiceDiscovery:
         Returns:
             服务的基础URL
         """
-        return nacos_client.get_service_url(
-            service_name=service_name,
-            group_name=settings.get_nacos_group()
-        )
+        # 获取服务实例列表
+        services = consul_client.get_service(service_name)
+        if not services:
+            return None
+        # 取第一个健康实例
+        service = services[0]['Service']
+        if not service:
+            return None
+        address = service.get('TaggedAddresses', {}).get(protocol, {}).get('address')
+        final_address = None
+        if address:
+            final_address = address
+        else:
+            address = service.get('Address') or service.get('ServiceAddress')
+            port = service.get('Port') or service.get('ServicePort')
+            if address and port:
+                final_address = f"{protocol}://{address}:{port}"
+        print('final_address', final_address)
+        return final_address
     
     @staticmethod
     async def make_request(

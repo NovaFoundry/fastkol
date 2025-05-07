@@ -77,7 +77,7 @@ async def test_fetcher(platform, action, params):
 
 if __name__ == "__main__":
     # 示例: 测试 Twitter 爬虫
-    platform = "instagram"
+    platform = "twitter"
     action = "find_users_by_search"  # 修改为测试搜索用户
     params = {
         "query": "关税",  # 搜索关键词

@@ -926,7 +926,7 @@ class TwitterFetcher(BaseFetcher):
             return ([], None)
 
     async def _get_twitter_acounts_from_admin_service(self) -> bool:
-        """通过服务发现获取admin-service-http的IP和端口，然后发送POST请求获取Twitter账号
+        """通过服务发现获取admin的IP和端口，然后发送POST请求获取Twitter账号
         
         Returns:
             Dict[str, str]: 包含authToken、csrfToken和cookie的字典
@@ -937,9 +937,9 @@ class TwitterFetcher(BaseFetcher):
         try:
             self.logger.info("正在通过服务发现获取Twitter认证信息...")
 
-            # 使用ServiceDiscovery发送POST请求到admin-service-http
+            # 使用ServiceDiscovery发送POST请求到admin
             response = await ServiceDiscovery.post(
-                service_name="admin-service-http",
+                service_name="admin",
                 path="/v1/twitter/accounts/lock",
                 json={}  # 如果需要请求体，可以在这里添加
             )
@@ -972,7 +972,7 @@ class TwitterFetcher(BaseFetcher):
                 self.logger.info("已有Twitter账号，无需重新获取")
                 return True
                 
-            # 从admin-service-http获取认证信息
+            # 从admin获取认证信息
             await self._get_twitter_acounts_from_admin_service()
             if self.twitter_accounts:
                 self.selected_twitter_account = self.twitter_accounts[0]
@@ -993,9 +993,9 @@ class TwitterFetcher(BaseFetcher):
             return True
         try:
             ids = [account.get("id") for account in self.twitter_accounts]
-            # 使用ServiceDiscovery发送POST请求到admin-service-http
+            # 使用ServiceDiscovery发送POST请求到admin
             response = await ServiceDiscovery.post(
-                service_name="admin-service-http",
+                service_name="admin",
                 path="/v1/twitter/accounts/unlock",
                 json={"ids": ids}  # 如果需要请求体，可以在这里添加
             )
