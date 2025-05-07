@@ -15,21 +15,6 @@ services:
       - graph-weaver_network
     restart: unless-stopped
 
-  # rabbitmq:
-  #   image: rabbitmq:management-alpine
-  #   container_name: rabbitmq
-  #   ports:
-  #     - "${RABBITMQ_PORT}:5672"
-  #     - "${RABBITMQ_MANAGEMENT_PORT}:15672"
-  #   environment:
-  #     RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
-  #     RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS}
-  #   volumes:
-  #     - rabbitmq:/var/lib/rabbitmq
-  #   networks:
-  #     - graph-weaver_network
-  #   restart: unless-stopped
-
   redis:
     image: redis:7.0-alpine  # 使用官方 Alpine 版本（轻量级）
     container_name: redis
@@ -79,6 +64,34 @@ services:
       - CONSUL_BIND_INTERFACE=eth0
       - CONSUL_LOCAL_CONFIG={"acl":{"enabled":true,"default_policy":"allow","down_policy":"extend-cache","tokens":{"master":"${CONSUL_MASTER_TOKEN}"}}}
     command: agent -server -bootstrap-expect=1 -bootstrap -ui -client=0.0.0.0 -data-dir=/consul/data
+    networks:
+      - graph-weaver_network
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      # - "traefik.http.routers.consul.rule=Host(`consul.localhost`)"
+      - "traefik.http.routers.consul.entrypoints=web"
+      - "traefik.http.services.consul.loadbalancer.server.port=8500"
+
+  traefik:
+    image: traefik:latest
+    container_name: traefik
+    command:
+      - --api.insecure=true
+      - --api.dashboard=true
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --entrypoints.web.address=:80
+      - --providers.consulcatalog=true
+      - --providers.consulcatalog.endpoint.address=consul:8500
+      - --providers.consulcatalog.endpoint.token=${CONSUL_SERVICE_REGISTRATION_TOKEN}
+      - --providers.consulcatalog.exposedbydefault=false
+    ports:
+      - "10080:80"      # HTTP
+      - "18080:8080"  # Traefik Dashboard
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - traefik_data:/data
     networks:
       - graph-weaver_network
     restart: unless-stopped
