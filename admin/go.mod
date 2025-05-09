@@ -19,6 +19,8 @@ require (
 	gorm.io/gorm v1.25.12
 )
 
+replace github.com/go-kratos/kratos/contrib/registry/consul/v2 => github.com/hujia7812556/kratos-contrib-registry-consul/v2 v2.8.4
+
 require (
 	dario.cat/mergo v1.0.0 // indirect
 	github.com/alibabacloud-go/darabonba-array v0.1.0 // indirect
