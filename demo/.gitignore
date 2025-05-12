@@ -1,0 +1,29 @@
+# Node
+node_modules/
+
+# Next.js
+.next/
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Env
+.env*
+
+# Editor
+.vscode/
+.idea/
+*.swp
+
+# Output
+out/
+
+# Excel/临时文件
+*.xlsx 
