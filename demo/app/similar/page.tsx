@@ -40,7 +40,7 @@ export default function SimilarPage() {
   const handleSubmit = async (values: any) => {
     setIsLoading(true);
     try {
-      const response = await fetchTask('http://localhost:10081/fetcher/fetch/similar', {
+      const response = await fetchTask('/fetcher/fetch/similar', {
         platform: values.platform,
         username: values.username,
         count: values.count || 100,
