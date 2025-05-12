@@ -22,6 +22,8 @@ from app.celery_app import app as celery_app
 from celery.result import AsyncResult
 from app.db.operations import create_fetch_task
 from sqlalchemy.future import select
+import uvicorn
+from uvicorn.logging import DefaultFormatter
 # 导入其他平台的爬虫类
 
 # 配置日志
@@ -30,6 +32,17 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+# 配置 FastAPI 的访问日志
+uvicorn_logger = logging.getLogger("uvicorn.access")
+uvicorn_logger.setLevel(logging.INFO)
+formatter = DefaultFormatter(
+    fmt="%(asctime)s - %(levelprefix)s %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+    use_colors=True
+)
+for handler in uvicorn_logger.handlers:
+    handler.setFormatter(formatter)
 
 # 存储爬虫任务状态和结果
 tasks = {}
