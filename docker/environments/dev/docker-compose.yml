@@ -63,15 +63,17 @@ services:
     environment:
       - CONSUL_BIND_INTERFACE=eth0
       - CONSUL_LOCAL_CONFIG={"acl":{"enabled":true,"default_policy":"allow","down_policy":"extend-cache","tokens":{"master":"${CONSUL_MASTER_TOKEN}"}}}
-    command: agent -server -bootstrap-expect=1 -bootstrap -ui -client=0.0.0.0 -data-dir=/consul/data
+    command: agent -server -bootstrap-expect=1 -bootstrap -ui -client=0.0.0.0
     networks:
       - graph-weaver_network
     restart: unless-stopped
     labels:
       - "traefik.enable=true"
-      # - "traefik.http.routers.consul.rule=Host(`consul.localhost`)"
+      - "traefik.http.routers.consul.rule=Host(`${CONSUL_HOST}`)"
       - "traefik.http.routers.consul.entrypoints=web"
       - "traefik.http.services.consul.loadbalancer.server.port=8500"
+      - "traefik.http.routers.consul.middlewares=consul-auth"
+      - "traefik.http.middlewares.consul-auth.basicauth.users=${CONSUL_TRAEFIK_USER_PWD}"
 
   traefik:
     image: traefik:latest
@@ -86,9 +88,11 @@ services:
       - --providers.consulcatalog.endpoint.address=consul:8500
       - --providers.consulcatalog.endpoint.token=${CONSUL_SERVICE_REGISTRATION_TOKEN}
       - --providers.consulcatalog.exposedbydefault=false
+      - --accesslog=true
     ports:
-      - "10080:80"      # HTTP
-      - "18080:8080"  # Traefik Dashboard
+      - "${TRAEFIK_HTTP_PORT}:80"      # HTTP
+      - "${TRAEFIK_HTTPS_PORT}:443"     # HTTPS
+      - "${TRAEFIK_DASHBOARD_PORT}:8080"  # Traefik Dashboard
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - traefik_data:/data
