@@ -100,6 +100,26 @@ services:
       - graph-weaver_network
     restart: unless-stopped
 
+  demo:
+    build:
+      context: ../../../demo
+      dockerfile: Dockerfile
+    container_name: demo
+    ports:
+      - "3000:3000"
+    volumes:
+      - ../../../demo:/app
+      - /app/node_modules
+    environment:
+      - NODE_ENV=development
+    networks:
+      - graph-weaver_network
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.demo.rule=Host(`demo.jerehu.local`)"
+      - "traefik.http.routers.demo.entrypoints=web"
+
 networks:
   graph-weaver_network:
     driver: bridge
