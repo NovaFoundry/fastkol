@@ -32,30 +32,12 @@ services:
       - graph-weaver_network
     restart: unless-stopped
 
-  rnacos:
-    image: qingpan/rnacos:stable-alpine
-    container_name: rnacos
-    environment:
-      - RNACOS_INIT_ADMIN_USERNAME=${RNACOS_USER}
-      - RNACOS_INIT_ADMIN_PASSWORD=${RNACOS_PASSWORD}
-      - RNACOS_HTTP_PORT=${RNACOS_HTTP_PORT}
-      - RNACOS_GRPC_PORT=${RNACOS_GRPC_PORT}
-      - RNACOS_HTTP_CONSOLE_PORT=${RNACOS_HTTP_CONSOLE_PORT}
-    ports:
-      - "8848:8848"
-      - "9848:9848"
-      - "10848:10848"
-    volumes:
-      - rnacos_data:/io:rw
-    networks:
-      - graph-weaver_network
-
   consul:
     image: consul:1.15
     container_name: consul
     ports:
-      - "8500:8500" # Consul Web UI 和 HTTP API
-      - "8600:8600/udp" # Consul DNS
+      - "${CONSUL_HTTP_PORT}:8500" # Consul Web UI 和 HTTP API
+      - "${CONSUL_DNS_PORT}:8600/udp" # Consul DNS
     volumes:
       - consul_data:/consul/data
       - ./consul/policy:/consul/policy
@@ -71,7 +53,7 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.consul.rule=Host(`${CONSUL_HOST}`)"
       - "traefik.http.routers.consul.entrypoints=web"
-      - "traefik.http.services.consul.loadbalancer.server.port=8500"
+      - "traefik.http.services.consul.loadbalancer.server.port=${CONSUL_HTTP_PORT}"
       - "traefik.http.routers.consul.middlewares=consul-auth"
       - "traefik.http.middlewares.consul-auth.basicauth.users=${CONSUL_TRAEFIK_USER_PWD}"
 
@@ -85,7 +67,7 @@ services:
       - --providers.docker.exposedbydefault=false
       - --entrypoints.web.address=:80
       - --providers.consulcatalog=true
-      - --providers.consulcatalog.endpoint.address=consul:8500
+      - --providers.consulcatalog.endpoint.address=consul:${CONSUL_HTTP_PORT}
       - --providers.consulcatalog.endpoint.token=${CONSUL_SERVICE_REGISTRATION_TOKEN}
       - --providers.consulcatalog.exposedbydefault=false
       - --accesslog=true
@@ -105,8 +87,6 @@ services:
       context: ../../../demo
       dockerfile: Dockerfile
     container_name: demo
-    ports:
-      - "3000:3000"
     environment:
       - NODE_ENV=production
     networks:
@@ -114,7 +94,7 @@ services:
     restart: unless-stopped
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.demo.rule=Host(`demo.jerehu.local`)"
+      - "traefik.http.routers.demo.rule=Host(`${DEMO_HOST}`)"
       - "traefik.http.routers.demo.entrypoints=web"
 
 networks:
