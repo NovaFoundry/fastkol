@@ -1,5 +1,5 @@
 # 第一阶段：构建 Go 二进制
-FROM golang:1.24-alpine3.21 AS builder
+FROM golang:1.24 AS builder
 
 WORKDIR /app
 
