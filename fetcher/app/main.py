@@ -15,7 +15,7 @@ from sqlalchemy import text
 from app.settings import settings
 from app.db.operations import init_db, update_fetch_task, SessionLocal, get_fetch_task
 from app.fetchers.twitter import TwitterFetcher
-from app.core.config_manager import config_manager
+# from app.core.config_manager import config_manager
 from app.core.nacos_client import nacos_client
 from app.core.consul_client import consul_client
 from app.celery_app import app as celery_app
@@ -56,7 +56,7 @@ async def lifespan(app: FastAPI):
     try:
         # 初始化配置管理器
         logger.info("Initializing configuration manager...")
-        config_manager.initialize()
+        # config_manager.initialize()
         
         # # 注册服务到 Nacos
         # logger.info("Registering service to Nacos...")
