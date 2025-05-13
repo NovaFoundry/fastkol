@@ -12,7 +12,6 @@ RUN apt-get update && apt-get install -y git make protobuf-compiler
 #     && go install github.com/go-kratos/kratos/v2/cmd/protoc-gen-go-http@latest
 
 RUN apt-get update && apt-get -y install protobuf-compiler \
-    && export GOPROXY=https://goproxy.io,direct \
     && go install github.com/go-kratos/kratos/cmd/kratos/v2@latest \
     && kratos upgrade
 
