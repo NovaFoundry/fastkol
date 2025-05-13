@@ -1,20 +1,28 @@
-# 选择官方 Node.js 镜像，建议和 package.json 里的 node 版本一致
-FROM node:22.15.0-slim
+# 选择官方 Node.js Alpine 镜像作为构建阶段
+FROM node:22.15.0-alpine3.21 AS builder
 
-# 设置工作目录
 WORKDIR /app
 
-# 复制 package.json 和 package-lock.json
 COPY package.json package-lock.json ./
-
-# 安装依赖
+# 安装构建原生依赖所需工具
+RUN apk add --no-cache python3 make g++
 RUN npm ci
 
-# 复制所有源代码
 COPY . .
+RUN mkdir -p public
+RUN npm run build
 
-# 暴露 Next.js 默认端口
+# 生产环境镜像
+FROM node:22.15.0-alpine3.21 AS runner
+WORKDIR /app
+
+ENV NODE_ENV=production
+
+COPY --from=builder /app/package.json ./
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/.next ./.next
+COPY --from=builder /app/public ./public
+
 EXPOSE 3000
 
-# 启动开发服务器，支持热更新
-CMD ["npm", "run", "dev", "--", "-H", "0.0.0.0"]
+CMD ["npm", "run", "start"]

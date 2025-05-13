@@ -16,18 +16,18 @@ services:
     restart: unless-stopped
 
   redis:
-    image: redis:7.0-alpine  # 使用官方 Alpine 版本（轻量级）
+    image: redis:7.0-alpine # 使用官方 Alpine 版本（轻量级）
     container_name: redis
     ports:
-      - "6379:6379"  # 默认 Redis 端口映射
+      - "6379:6379" # 默认 Redis 端口映射
     volumes:
-      - redis_data:/data  # 持久化数据存储
-    # environment:
+      - redis_data:/data # 持久化数据存储
+      # environment:
       # - REDIS_PASSWORD=your_strong_password  # 密码保护（按需启用）
-    # 如果需要自定义配置文件（先创建本地 redis.conf 文件）:
-    # volumes:
-    #   - ./redis.conf:/usr/local/etc/redis/redis.conf
-    # command: redis-server /usr/local/etc/redis/redis.conf
+      # 如果需要自定义配置文件（先创建本地 redis.conf 文件）:
+      # volumes:
+      #   - ./redis.conf:/usr/local/etc/redis/redis.conf
+      # command: redis-server /usr/local/etc/redis/redis.conf
     networks:
       - graph-weaver_network
     restart: unless-stopped
@@ -54,8 +54,8 @@ services:
     image: consul:1.15
     container_name: consul
     ports:
-      - "8500:8500"      # Consul Web UI 和 HTTP API
-      - "8600:8600/udp"  # Consul DNS
+      - "8500:8500" # Consul Web UI 和 HTTP API
+      - "8600:8600/udp" # Consul DNS
     volumes:
       - consul_data:/consul/data
       - ./consul/policy:/consul/policy
@@ -90,9 +90,9 @@ services:
       - --providers.consulcatalog.exposedbydefault=false
       - --accesslog=true
     ports:
-      - "${TRAEFIK_HTTP_PORT}:80"      # HTTP
-      - "${TRAEFIK_HTTPS_PORT}:443"     # HTTPS
-      - "${TRAEFIK_DASHBOARD_PORT}:8080"  # Traefik Dashboard
+      - "${TRAEFIK_HTTP_PORT}:80" # HTTP
+      - "${TRAEFIK_HTTPS_PORT}:443" # HTTPS
+      - "${TRAEFIK_DASHBOARD_PORT}:8080" # Traefik Dashboard
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - traefik_data:/data
@@ -107,11 +107,8 @@ services:
     container_name: demo
     ports:
       - "3000:3000"
-    volumes:
-      - ../../../demo:/app
-      - /app/node_modules
     environment:
-      - NODE_ENV=development
+      - NODE_ENV=production
     networks:
       - graph-weaver_network
     restart: unless-stopped
