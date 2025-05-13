@@ -13,6 +13,7 @@ RUN go mod download
 # 拷贝项目源码
 COPY . .
 
+RUN ls -l ./cmd/Admin
 # 构建二进制文件
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o admin ./cmd/Admin
 
