@@ -16,7 +16,6 @@ from app.settings import settings
 from app.db.operations import init_db, update_fetch_task, SessionLocal, get_fetch_task
 from app.fetchers.twitter import TwitterFetcher
 # from app.core.config_manager import config_manager
-from app.core.nacos_client import nacos_client
 from app.core.consul_client import consul_client
 from app.celery_app import app as celery_app
 from celery.result import AsyncResult
@@ -211,9 +210,6 @@ async def health_check():
     # 获取当前时间戳
     current_time = int(time.time())
     
-    # 检查 Nacos 服务状态
-    nacos_status = "healthy" if nacos_client.get_is_initialized() else "unhealthy"
-    
     # 检查数据库连接
     try:
         async with SessionLocal() as session:
@@ -234,9 +230,6 @@ async def health_check():
         "status": "ok",
         "timestamp": current_time,
         "components": {
-            "nacos": {
-                "status": nacos_status,
-            },
             "database": {
                 "status": db_status
             },

@@ -26,13 +26,6 @@ class Settings:
         # 加载YAML配置
         self.config = self._load_config_from_file(self.config_path)
 
-        self.NACOS_ENABLED = self.config.get('nacos', {}).get('enabled', False)
-        nacos_config_path = self.config.get('nacos', {}).get('config_file', '')
-        if self.NACOS_ENABLED and nacos_config_path:
-            self.nacos_config = self._load_config_from_file(nacos_config_path)
-        else:
-            self.nacos_config = {}
-
         # 更新回调函数列表
         self._change_callbacks: list[ConfigChangeCallback] = []
     
@@ -89,28 +82,6 @@ class Settings:
         if key is None:
             return self.config
         return self.config.get(key, default)
-    
-    def get_nacos_config(self, key: str = None, default: Any = None) -> Any:
-        """获取Nacos配置项
-        
-        Args:
-            key: 配置键名，如果为None则返回整个配置字典
-            default: 当配置项不存在时返回的默认值
-            
-        Returns:
-            配置项的值，如果key为None则返回整个配置字典
-        """
-        if key is None:
-            return self.nacos_config
-        return self.nacos_config.get(key, default)
-    
-    def get_nacos_group(self) -> str:
-        """获取Nacos组名"""
-        return self.nacos_config.get('service', {}).get('group_name', 'DEFAULT_GROUP')
-    
-    def get_nacos_enabled(self) -> bool:
-        """获取Nacos是否启用"""
-        return self.NACOS_ENABLED
 
 # 创建单例设置实例
 @lru_cache()

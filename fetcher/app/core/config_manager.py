@@ -3,7 +3,6 @@ from typing import Optional, Dict, Any, Callable
 from fastapi import FastAPI
 
 from app.settings import settings, get_settings
-from app.core.nacos_client import nacos_client
 
 logger = logging.getLogger(__name__)
 
@@ -22,9 +21,9 @@ class ConfigManager:
         
         try:
             # 初始化 Nacos 服务
-            if not nacos_client.get_is_initialized():
-                logger.warning("Failed to initialize Nacos service, using local configuration only")
-                return
+            # if not nacos_client.get_is_initialized():
+            #     logger.warning("Failed to initialize Nacos service, using local configuration only")
+            #     return
             
             # 应用启动时，从Nacos获取最新配置并更新本地文件
             # self._fetch_and_update_config()
@@ -39,29 +38,29 @@ class ConfigManager:
     
     def _fetch_and_update_config(self):
         """从Nacos获取最新配置并更新本地文件"""
-        if not nacos_client.get_is_initialized():
-            logger.warning("Nacos client not initialized, cannot fetch config")
-            return
+        # if not nacos_client.get_is_initialized():
+        #     logger.warning("Nacos client not initialized, cannot fetch config")
+        #     return
         
         try:
             # 从Nacos获取最新配置
-            config_str = nacos_client.get_config(
-                data_id=self.settings.get_nacos_config("nacos", {}).get("data_id", ""),
-                group=self.settings.get_nacos_config("nacos", {}).get("group", "DEFAULT_GROUP")
-            )
+            # config_str = nacos_client.get_config(
+            #     data_id=self.settings.get_nacos_config("nacos", {}).get("data_id", ""),
+            #     group=self.settings.get_nacos_config("nacos", {}).get("group", "DEFAULT_GROUP")
+            # )
             
-            if not config_str:
-                logger.warning("No config retrieved from Nacos")
-                return
+            # if not config_str:
+            #     logger.warning("No config retrieved from Nacos")
+            #     return
             
             logger.info("Successfully fetched config from Nacos at startup")
             
             # 更新本地配置文件
-            self._update_local_config_file(config_str)
+            # self._update_local_config_file(config_str)
             
             # 更新设置对象
-            self.settings.update_config(config_str)
-            logger.info("Configuration initialized from Nacos successfully")
+            # self.settings.update_config(config_str)
+            # logger.info("Configuration initialized from Nacos successfully")
             
         except Exception as e:
             logger.error(f"Error fetching and updating config at startup: {e}")
