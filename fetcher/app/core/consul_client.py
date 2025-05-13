@@ -60,7 +60,7 @@ class ConsulClient:
                 tags=self.service_config["tags"],
                 meta=self.service_config["meta"],
                 check=self.service_config["check"],
-                token=self.consul_config["token"]
+                # token=self.consul_config["token"]
             )
             logger.info(f"Service {self.service_config['name']} registered successfully with address {address}")
         except Exception as e:

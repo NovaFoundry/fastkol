@@ -1,0 +1,66 @@
+proxy:
+  enabled: true
+  url: http://YOUR_PROXY_URL
+celery:
+  broker_url: redis://127.0.0.1:6379/0
+  enable_utc: true
+  result_backend: redis://127.0.0.1:6379/1
+  result_expires: 3600
+  timezone: UTC
+twitter:
+  endpoints:
+    similar_users: https://x.com/i/api/graphql/WIeRrT1lB03IHxrLKXcY3g/ConnectTabTimeline
+    user_by_screen_name: https://x.com/i/api/graphql/32pL5BWe9WKeSK1MoPvFQQ/UserByScreenName
+    user_tweets: https://x.com/i/api/graphql/M3Hpkrb8pjWkEuGdLeXMOA/UserTweets
+    search_timeline: https://x.com/i/api/graphql/fL2MBiqXPk5pSrOS5ACLdA/SearchTimeline
+instagram:
+  endpoints:
+    user_by_uid:
+      url: https://www.instagram.com/graphql/query
+      doc_id: 9302604453198918
+    similar_users:
+      url: https://www.instagram.com/graphql/query
+      doc_id: 8787138138058098
+    top_serp:
+      url: https://www.instagram.com/api/v1/fbsearch/web/top_serp
+fastapi:
+  description: Service for fetching data from various sources
+  docs_url: /docs
+  openapi_url: /openapi.json
+  redoc_url: /redoc
+  title: Fetcher Service
+  version: 0.1.0
+database:
+  url: postgresql+asyncpg://postgres:YOUR_PASSWORD@127.0.0.1:5432/fastkol_fetcher
+
+consul:
+  server: 
+    host: 127.0.0.1
+    port: 8500
+    scheme: http
+    datacenter: 'dc1'
+
+  service:
+    name: 'fetcher'
+    id: 'fetcher'
+    address: '0.0.0.0'
+    port: 18101
+    tags: [
+      'protocol=http',
+      'group=FASTKOL',
+      'traefik.enable=true',
+      'traefik.http.routers.fetcher.rule=PathPrefix(`/fetcher`)',
+      'traefik.http.routers.fetcher.entrypoints=web',
+      'traefik.http.routers.fetcher.middlewares=fetcher-stripprefix',
+      'traefik.http.middlewares.fetcher-stripprefix.stripprefix.prefixes=/fetcher',
+    ]
+    meta: 
+      protocol: 'http'
+      group: 'FASTKOL'
+
+    check:
+      http: 'http://host.docker.internal:18101/health'
+      interval: 10s
+      timeout: 10s
+      deregister_critical_service_after: 5m
+    token: 'YOUR_CONSUL_TOKEN'

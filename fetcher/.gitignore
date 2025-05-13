@@ -22,6 +22,6 @@ ENV/
 # Conda
 .conda/ 
 
-config/config.yaml
-config/nacos_config.yaml
+config/*.yaml
+!config/config.template.yaml
 nacos-data/
