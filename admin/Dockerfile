@@ -22,7 +22,6 @@ FROM alpine:3.21
 WORKDIR /app
 
 # 拷贝配置文件（如有需要可调整路径）
-COPY --from=builder /app/configs ./configs
 COPY --from=builder /app/admin ./
 
 # 设置时区（可选）
