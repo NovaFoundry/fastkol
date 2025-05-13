@@ -3,8 +3,8 @@ FROM golang:1.24 AS builder
 
 WORKDIR /app
 
-# 安装 git 以支持 go mod 下载私有依赖（如有需要）
-RUN apk add --no-cache git
+# 安装 git 和 make 以支持 go mod 下载私有依赖和 make 命令
+RUN apt-get update && apt-get install -y git make
 
 # 拷贝 go.mod 和 go.sum 并下载依赖
 COPY go.mod go.sum ./
