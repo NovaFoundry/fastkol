@@ -15,7 +15,8 @@ COPY . .
 
 RUN ls -l ./cmd/Admin
 # 构建二进制文件
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o admin ./cmd/Admin
+# RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-s -w" -o admin ./cmd/Admin
+RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -v -x -ldflags="-s -w" -o admin ./cmd/Admin
 
 # 第二阶段：极简运行环境
 FROM alpine:3.21
