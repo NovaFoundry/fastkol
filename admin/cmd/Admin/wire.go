@@ -9,7 +9,6 @@ import (
 	"Admin/internal/biz"
 	"Admin/internal/conf"
 	"Admin/internal/data"
-	"Admin/internal/registry"
 	"Admin/internal/server"
 	"Admin/internal/service"
 
@@ -19,6 +18,7 @@ import (
 )
 
 // wireApp init kratos application.
+// func wireApp(confServer *conf.Server, confData *conf.Data, confRegistry *conf.Registry, logger log.Logger, bc *conf.Bootstrap) (*kratos.App, func(), error) {
 func wireApp(confServer *conf.Server, confData *conf.Data, confRegistry *conf.Registry, logger log.Logger, bc *conf.Bootstrap) (*kratos.App, func(), error) {
-	panic(wire.Build(server.ProviderSet, data.ProviderSet, biz.ProviderSet, service.ProviderSet, registry.ProviderSet, newApp))
+	panic(wire.Build(server.ProviderSet, data.ProviderSet, biz.ProviderSet, service.ProviderSet, newApp))
 }

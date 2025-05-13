@@ -58,10 +58,10 @@ async def lifespan(app: FastAPI):
         logger.info("Initializing configuration manager...")
         config_manager.initialize()
         
-        # 注册服务到 Nacos
-        logger.info("Registering service to Nacos...")
-        if not nacos_client.register_service():
-            logger.warning("Failed to register service to Nacos")
+        # # 注册服务到 Nacos
+        # logger.info("Registering service to Nacos...")
+        # if not nacos_client.register_service():
+        #     logger.warning("Failed to register service to Nacos")
             
         # 注册服务到 Consul
         logger.info("Registering service to Consul...")
@@ -84,9 +84,9 @@ async def lifespan(app: FastAPI):
         # 关闭逻辑
         logger.info("Fetcher Service shutting down")
         
-        # 注销 Nacos 服务
-        logger.info("Deregistering service from Nacos...")
-        nacos_client.deregister_service()
+        # # 注销 Nacos 服务
+        # logger.info("Deregistering service from Nacos...")
+        # nacos_client.deregister_service()
         
         # 注销 Consul 服务
         logger.info("Deregistering service from Consul...")

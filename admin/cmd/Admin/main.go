@@ -13,7 +13,6 @@ import (
 	"github.com/go-kratos/kratos/v2/config/file"
 	"github.com/go-kratos/kratos/v2/log"
 	"github.com/go-kratos/kratos/v2/middleware/tracing"
-	"github.com/go-kratos/kratos/v2/registry"
 	"github.com/go-kratos/kratos/v2/transport/grpc"
 	"github.com/go-kratos/kratos/v2/transport/http"
 	consulapi "github.com/hashicorp/consul/api"
@@ -38,7 +37,8 @@ func init() {
 	flag.StringVar(&flagconf, "conf", "../../configs/config.yaml", "config path, eg: -conf config.yaml")
 }
 
-func newApp(bc *conf.Bootstrap, logger log.Logger, gs *grpc.Server, hs *http.Server, registrar registry.Registrar) *kratos.App {
+// func newApp(bc *conf.Bootstrap, logger log.Logger, gs *grpc.Server, hs *http.Server, registrar registry.Registrar) *kratos.App {
+func newApp(bc *conf.Bootstrap, logger log.Logger, gs *grpc.Server, hs *http.Server) *kratos.App {
 	cfg := consulapi.DefaultConfig()
 	cfg.Address = fmt.Sprintf("%s:%d", bc.Registry.Consul.Server.Host, bc.Registry.Consul.Server.Port)
 	cfg.Scheme = bc.Registry.Consul.Server.Scheme
