@@ -33,7 +33,9 @@ WORKDIR /app
 COPY --from=builder /app/admin ./
 
 # 设置时区（可选）
-# RUN apk add --no-cache tzdata
+RUN apk add --no-cache tzdata && \
+    cp /usr/share/zoneinfo/UTC /etc/localtime && \
+    echo "UTC" > /etc/timezone
 
 # 暴露服务端口（根据你的服务端口调整）
 EXPOSE 8000 9000

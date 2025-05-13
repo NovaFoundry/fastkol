@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"time"
 
 	"Admin/internal/conf"
 
@@ -68,6 +69,7 @@ func newApp(bc *conf.Bootstrap, logger log.Logger, gs *grpc.Server, hs *http.Ser
 }
 
 func main() {
+	time.Local = time.UTC
 	flag.Parse()
 	logger := log.With(log.NewStdLogger(os.Stdout),
 		"ts", log.DefaultTimestamp,
