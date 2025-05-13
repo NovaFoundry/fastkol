@@ -3,8 +3,15 @@ FROM golang:1.24 AS builder
 
 WORKDIR /app
 
-# 安装 git 和 make 以支持 go mod 下载私有依赖和 make 命令
-RUN apt-get update && apt-get install -y git make
+# 安装 git、make、protoc
+RUN apt-get update && apt-get install -y git make protobuf-compiler
+
+# 安装 protoc 插件
+RUN go install google.golang.org/protobuf/cmd/protoc-gen-go@latest \
+    && go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest \
+    && go install github.com/go-kratos/kratos/v2/cmd/protoc-gen-go-http@latest
+
+ENV PATH=$PATH:/root/go/bin
 
 # 拷贝 go.mod 和 go.sum 并下载依赖
 COPY go.mod go.sum ./
