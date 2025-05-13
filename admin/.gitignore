@@ -47,5 +47,3 @@ openapi.yaml
 
 # config
 configs/config.yaml
-
-go.sum
