@@ -8,8 +8,30 @@ server:
 data:
   database:
     driver: postgres
-    source: host=localhost user=postgres password=postgres dbname=test port=5432 sslmode=disable TimeZone=Asia/Shanghai
+    source: host=host.docker.internal user=postgres password=YOUR_PASSWORD dbname=YOUR_DB_NAME port=5432 sslmode=disable TimeZone=UTC
   redis:
-    addr: 127.0.0.1:6379
+    addr: host.docker.internal:6379
+    db: 2
     read_timeout: 0.2s
     write_timeout: 0.2s
+registry:
+  consul:
+    server:
+      host: host.docker.internal
+      port: 8500
+      scheme: http
+      token: 'YOUR_CONSUL_TOKEN'
+      datacenter: 'dc1' 
+    service:
+      tags: [
+        # 'protocol=http',
+        # 'group=FASTKOL',
+        # 'traefik.enable=true',
+        # 'traefik.http.routers.admin.rule=PathPrefix(`/admin`)',
+        # 'traefik.http.routers.admin.entrypoints=web',
+        # 'traefik.http.routers.admin.middlewares=admin-stripprefix',
+        # 'traefik.http.middlewares.admin-stripprefix.stripprefix.prefixes=/admin',
+      ]
+      metadata: 
+        group: 'FASTKOL'
+        tags: 'protocol=http,group=FASTKOL'

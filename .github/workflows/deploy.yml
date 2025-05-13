@@ -1,0 +1,10 @@
+- name: Deploy to Production
+  uses: appleboy/ssh-action@v0.1.10
+  with:
+    host: ${{ secrets.DEPLOY_HOST }}
+    username: ${{ secrets.DEPLOY_USER }}
+    key: ${{ secrets.DEPLOY_SSH_KEY }}
+    script: |
+      cd ${{ secrets.DEPLOY_TARGET }}
+      docker-compose pull
+      docker-compose up -d

@@ -46,4 +46,5 @@ openapi.yaml
 *.pb.go
 
 # config
-configs/config.yaml
+configs/*.yaml
+!configs/config.template.yaml
