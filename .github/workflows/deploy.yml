@@ -51,7 +51,6 @@ jobs:
             docker/environments/prod/*
             docker/environments/prod/.env
             docker/environments/prod/demo/.env
-            docker/environments/prod/admin/config.yaml
           target: "${{ secrets.DEPLOY_TARGET }}"
           strip_components: 3
 
