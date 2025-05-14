@@ -47,10 +47,7 @@ jobs:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
-          source: |
-            docker/environments/prod/*
-            docker/environments/prod/.env
-            docker/environments/prod/demo/.env
+          source: "docker/environments/prod/*,docker/environments/prod/.env,docker/environments/prod/demo/.env"
           target: "${{ secrets.DEPLOY_TARGET }}"
           strip_components: 3
 
