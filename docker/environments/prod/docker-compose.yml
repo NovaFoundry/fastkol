@@ -84,7 +84,7 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.demo.rule=Host(`${DEMO_HOST}`)"
       - "traefik.http.routers.demo.entrypoints=web"
-      - "traefik.http.services.demo.loadbalancer.server.port=${DEMO_HTTP_PORT}"
+      - "traefik.http.services.demo.loadbalancer.server.port=3000"
       - "traefik.http.routers.demo.middlewares=demo-auth"
       - "traefik.http.middlewares.demo-auth.basicauth.users=${DEMO_TRAEFIK_USER_PWD}"
     networks:
