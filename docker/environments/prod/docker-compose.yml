@@ -108,7 +108,6 @@ services:
       - "traefik.http.services.admin.loadbalancer.server.port=8000"
       - "traefik.http.routers.admin.middlewares=admin-stripprefix"
       - "traefik.http.middlewares.admin-stripprefix.stripprefix.prefixes=/admin"
-
     networks:
       - fastkol_network
     restart: unless-stopped
@@ -117,6 +116,43 @@ services:
       - redis
       - consul
       - traefik
+
+  fetcher-web:
+    image: hujia7812556/fastkol-fetcher:latest
+    container_name: fetcher-web
+    volumes:
+      - ./fetcher-web/config.yaml:/app/config/config.yaml
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.fetcher.rule=PathPrefix(`/fetcher`)"
+      - "traefik.http.routers.fetcher.entrypoints=web"
+      - "traefik.http.services.fetcher.loadbalancer.server.port=8000"
+      - "traefik.http.routers.fetcher.middlewares=fetcher-stripprefix"
+      - "traefik.http.middlewares.fetcher-stripprefix.stripprefix.prefixes=/fetcher"
+    networks:
+      - fastkol_network
+    restart: unless-stopped
+    depends_on:
+      - postgres
+      - redis
+      - consul
+      - traefik
+
+  fetcher-worker:
+    image: hujia7812556/fastkol-fetcher:latest
+    container_name: fetcher-worker
+    volumes:
+      - ./fetcher-worker/config.yaml:/app/config/config.yaml
+    command: ["celery", "-A", "app.celery_app", "worker", "--loglevel=info"]
+    networks:
+      - fastkol_network
+    restart: unless-stopped
+    depends_on:
+      - postgres
+      - redis
+      - consul
+      - traefik
+      - admin
 
 networks:
   fastkol_network:
