@@ -21,6 +21,7 @@ jobs:
           $DOCKER_COMPOSE_ENV
           EOF
 
+          mkdir -p docker/environments/prod/demo
           cat > docker/environments/prod/demo/.env <<EOF
           $DEMO_ENV
           EOF
