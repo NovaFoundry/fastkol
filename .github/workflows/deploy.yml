@@ -16,9 +16,7 @@ jobs:
           echo "DB_USER=${{ secrets.DB_USER }}" >> $GITHUB_ENV
           echo "DB_PASSWORD=${{ secrets.DB_PASSWORD }}" >> $GITHUB_ENV
           echo "DB_PORT=${{ secrets.DB_PORT }}" >> $GITHUB_ENV
-
           echo "REDIS_PORT=${{ secrets.REDIS_PORT }}" >> $GITHUB_ENV
-
           echo "CONSUL_HTTP_PORT=${{ secrets.CONSUL_HTTP_PORT }}" >> $GITHUB_ENV
           echo "CONSUL_DNS_PORT=${{ secrets.CONSUL_DNS_PORT }}" >> $GITHUB_ENV
           echo "CONSUL_MASTER_TOKEN=${{ secrets.CONSUL_MASTER_TOKEN }}" >> $GITHUB_ENV
@@ -27,11 +25,9 @@ jobs:
           echo "CONSUL_HEALTH_CHECK_TOKEN=${{ secrets.CONSUL_HEALTH_CHECK_TOKEN }}" >> $GITHUB_ENV
           echo "CONSUL_HOST=${{ secrets.CONSUL_HOST }}" >> $GITHUB_ENV
           echo "CONSUL_TRAEFIK_USER_PWD=${{ secrets.CONSUL_TRAEFIK_USER_PWD }}" >> $GITHUB_ENV
-
           echo "TRAEFIK_HTTP_PORT=${{ secrets.TRAEFIK_HTTP_PORT }}" >> $GITHUB_ENV
           echo "TRAEFIK_HTTPS_PORT=${{ secrets.TRAEFIK_HTTPS_PORT }}" >> $GITHUB_ENV
-          echo "TRAEFIK_DASHBOARD_PORT=${{ secrets.TRAEFIK_DASHBOARD_PORT }}" >> $GITHUB_ENV
-
+          echo "TRAEFIK_DASHBOARD_PORT=${{ secrets.TRAEFIK_DASHBOARD_PORT }}" >> $GITHUB_EN
           echo "DEMO_HTTP_PORT=${{ secrets.DEMO_HTTP_PORT }}" >> $GITHUB_ENV
           echo "DEMO_HOST=${{ secrets.DEMO_HOST }}" >> $GITHUB_ENV
 
@@ -39,7 +35,25 @@ jobs:
         working-directory: docker/environments/prod
         run: |
           export $(cat $GITHUB_ENV | xargs)
-          envsubst < .env.template > .env
+          envsubst '
+          $DB_USER 
+          $DB_PASSWORD 
+          $DB_PORT 
+          $REDIS_PORT 
+          $CONSUL_HTTP_PORT 
+          $CONSUL_DNS_PORT 
+          $CONSUL_MASTER_TOKEN 
+          $CONSUL_SERVICE_REGISTRATION_TOKEN 
+          $CONSUL_KV_TOKEN 
+          $CONSUL_HEALTH_CHECK_TOKEN 
+          $CONSUL_HOST 
+          $CONSUL_TRAEFIK_USER_PWD 
+          $TRAEFIK_HTTP_PORT 
+          $TRAEFIK_HTTPS_PORT 
+          $TRAEFIK_DASHBOARD_PORT 
+          $DEMO_HTTP_PORT 
+          $DEMO_HOST
+          ' < .env.template > .env
 
       - name: Create target directory on remote server
         uses: appleboy/ssh-action@v0.1.10
