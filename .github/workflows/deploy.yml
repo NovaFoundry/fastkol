@@ -50,14 +50,9 @@ jobs:
           script: |
             mkdir -p ${{ secrets.DEPLOY_TARGET }}
 
-      - name: Sync prod directory to target server
-        uses: appleboy/scp-action@v0.1.4
-        with:
-          host: ${{ secrets.DEPLOY_HOST }}
-          username: ${{ secrets.DEPLOY_USER }}
-          key: ${{ secrets.DEPLOY_SSH_KEY }}
-          source: "docker/environments/prod/."
-          target: "${{ secrets.DEPLOY_TARGET }}"
+      - name: Sync prod directory to target server (with rsync)
+        run: |
+          rsync -avz -e "ssh -i ${{ secrets.DEPLOY_SSH_KEY }} -o StrictHostKeyChecking=no" docker/environments/prod/ ${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:${{ secrets.DEPLOY_TARGET }}/
 
       - name: Deploy on target server
         uses: appleboy/ssh-action@v0.1.10
