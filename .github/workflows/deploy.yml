@@ -16,7 +16,7 @@ jobs:
           DOCKER_COMPOSE_ENV: ${{ secrets.DOCKER_COMPOSE_ENV }}
         run: |
           cat > docker/environments/prod/.env <<EOF
-          $DOCKER_COMPOSE_ENV
+          ${{ secrets.DOCKER_COMPOSE_ENV }}
           EOF
 
       - name: Create target directory on remote server
