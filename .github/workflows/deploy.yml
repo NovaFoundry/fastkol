@@ -11,13 +11,18 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Generate .env file from secret
+      - name: Generate .env files from secrets
         env:
           DOCKER_COMPOSE_ENV: ${{ secrets.DOCKER_COMPOSE_ENV }}
+          DEMO_ENV: ${{ secrets.DEMO_ENV }}
         run: |
           # 这样可以正确输出里面的$符号
           cat > docker/environments/prod/.env <<EOF
           $DOCKER_COMPOSE_ENV
+          EOF
+
+          cat > docker/environments/prod/demo/.env <<EOF
+          $DEMO_ENV
           EOF
 
       - name: Calculate hash for config files
@@ -40,7 +45,7 @@ jobs:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
-          source: "docker/environments/prod/*,docker/environments/prod/.env"
+          source: "docker/environments/prod/*,docker/environments/prod/.env,docker/environments/prod/demo/.env"
           target: "${{ secrets.DEPLOY_TARGET }}"
           strip_components: 3
 
