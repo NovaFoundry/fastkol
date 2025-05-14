@@ -16,6 +16,7 @@ jobs:
           DOCKER_COMPOSE_ENV: ${{ secrets.DOCKER_COMPOSE_ENV }}
           DEMO_ENV: ${{ secrets.DEMO_ENV }}
           ADMIN_CONFIG: ${{ secrets.ADMIN_CONFIG }}
+          FETCHER_CONFIG: ${{ secrets.FETCHER_CONFIG }}
         run: |
           # 这样可以正确输出里面的$符号
           cat > docker/environments/prod/.env <<EOF
@@ -30,6 +31,16 @@ jobs:
           mkdir -p docker/environments/prod/admin
           cat > docker/environments/prod/admin/config.yaml <<EOF
           $ADMIN_CONFIG
+          EOF
+
+          mkdir -p docker/environments/prod/fetcher-web
+          cat > docker/environments/prod/fetcher-web/config.yaml <<EOF
+          $FETCHER_CONFIG
+          EOF
+
+          mkdir -p docker/environments/prod/fetcher-worker
+          cat > docker/environments/prod/fetcher-worker/config.yaml <<EOF
+          $FETCHER_CONFIG
           EOF
 
       - name: Create target directory on remote server
