@@ -11,6 +11,7 @@ on:
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
+    environment: production
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
@@ -19,7 +20,8 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
       - name: Generate .env from secrets
-        run: echo "${{ secrets.DEMO_ENV }}" > demo/.env
+        run: |
+          echo "${{ secrets.DEMO_ENV }}" > demo/.env
       - uses: docker/build-push-action@v5
         with:
           context: ./demo
