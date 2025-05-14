@@ -92,8 +92,6 @@ services:
     networks:
       - fastkol_network
     restart: unless-stopped
-    volumes:
-      - ./demo/.env:/app/.env
     depends_on:
       - consul
       - traefik
