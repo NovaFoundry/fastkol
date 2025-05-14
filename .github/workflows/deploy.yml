@@ -15,8 +15,9 @@ jobs:
         env:
           DOCKER_COMPOSE_ENV: ${{ secrets.DOCKER_COMPOSE_ENV }}
         run: |
+          # 这样可以正确输出里面的$符号
           cat > docker/environments/prod/.env <<EOF
-          ${{ secrets.DOCKER_COMPOSE_ENV }}
+          $DOCKER_COMPOSE_ENV
           EOF
 
       - name: Create target directory on remote server
