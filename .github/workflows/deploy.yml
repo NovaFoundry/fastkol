@@ -1,10 +1,62 @@
-- name: Deploy to Production
-  uses: appleboy/ssh-action@v0.1.10
-  with:
-    host: ${{ secrets.DEPLOY_HOST }}
-    username: ${{ secrets.DEPLOY_USER }}
-    key: ${{ secrets.DEPLOY_SSH_KEY }}
-    script: |
-      cd ${{ secrets.DEPLOY_TARGET }}
-      docker-compose pull
-      docker-compose up -d
+name: Deploy to Production
+
+on:
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up environment variables
+        run: |
+          echo "DB_USER=${{ secrets.DB_USER }}" >> $GITHUB_ENV
+          echo "DB_PASSWORD=${{ secrets.DB_PASSWORD }}" >> $GITHUB_ENV
+          echo "DB_PORT=${{ secrets.DB_PORT }}" >> $GITHUB_ENV
+
+          echo "REDIS_PORT=${{ secrets.REDIS_PORT }}" >> $GITHUB_ENV
+
+          echo "CONSUL_HTTP_PORT=${{ secrets.CONSUL_HTTP_PORT }}" >> $GITHUB_ENV
+          echo "CONSUL_DNS_PORT=${{ secrets.CONSUL_DNS_PORT }}" >> $GITHUB_ENV
+          echo "CONSUL_MASTER_TOKEN=${{ secrets.CONSUL_MASTER_TOKEN }}" >> $GITHUB_ENV
+          echo "CONSUL_SERVICE_REGISTRATION_TOKEN=${{ secrets.CONSUL_SERVICE_REGISTRATION_TOKEN }}" >> $GITHUB_ENV
+          echo "CONSUL_KV_TOKEN=${{ secrets.CONSUL_KV_TOKEN }}" >> $GITHUB_ENV
+          echo "CONSUL_HEALTH_CHECK_TOKEN=${{ secrets.CONSUL_HEALTH_CHECK_TOKEN }}" >> $GITHUB_ENV
+          echo "CONSUL_HOST=${{ secrets.CONSUL_HOST }}" >> $GITHUB_ENV
+          echo "CONSUL_TRAEFIK_USER_PWD=${{ secrets.CONSUL_TRAEFIK_USER_PWD }}" >> $GITHUB_ENV
+
+          echo "TRAEFIK_HTTP_PORT=${{ secrets.TRAEFIK_HTTP_PORT }}" >> $GITHUB_ENV
+          echo "TRAEFIK_HTTPS_PORT=${{ secrets.TRAEFIK_HTTPS_PORT }}" >> $GITHUB_ENV
+          echo "TRAEFIK_DASHBOARD_PORT=${{ secrets.TRAEFIK_DASHBOARD_PORT }}" >> $GITHUB_ENV
+
+          echo "DEMO_HTTP_PORT=${{ secrets.DEMO_HTTP_PORT }}" >> $GITHUB_ENV
+          echo "DEMO_HOST=${{ secrets.DEMO_HOST }}" >> $GITHUB_ENV
+
+      - name: Generate .env file with envsubst
+        working-directory: docker/environments/prod
+        run: |
+          export $(cat $GITHUB_ENV | xargs)
+          envsubst < .env.template > .env
+
+      - name: Sync prod directory to target server
+        uses: appleboy/scp-action@v0.1.4
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          source: "docker/environments/prod/*"
+          target: "${{ secrets.DEPLOY_TARGET }}"
+
+      - name: Deploy on target server
+        uses: appleboy/ssh-action@v0.1.10
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            cd ${{ secrets.DEPLOY_TARGET }}
+            docker-compose pull
+            docker-compose up -d
