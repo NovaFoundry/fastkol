@@ -20,6 +20,11 @@ jobs:
           $DOCKER_COMPOSE_ENV
           EOF
 
+      - name: Calculate hash for config files
+        run: |
+          md5sum docker/environments/prod/.env | awk '{print $1}' > .env.md5
+          md5sum docker/environments/prod/demo/.env | awk '{print $1}' > demo.env.md5
+
       - name: Create target directory on remote server
         uses: appleboy/ssh-action@v0.1.10
         with:
@@ -48,4 +53,4 @@ jobs:
           script: |
             cd ${{ secrets.DEPLOY_TARGET }}
             docker compose pull
-            docker compose up -d
+            docker compose up -d --force-recreate
