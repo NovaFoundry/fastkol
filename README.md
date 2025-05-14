@@ -18,7 +18,8 @@ docker compose up -d
    ```bash
    CONSUL_HTTP_TOKEN=your-master-token /consul/create-consul-tokens.sh
    ```
-3. **配置 Token**：将生成的 Token 写入各服务的配置文件或环境变量中，供服务注册、发现等功能使用。
+   会生成Service Registration、KV Store、Health Check 3个token
+3. **配置 Token**：将生成的 Token 更新 .env文件中CONSUL_SERVICE_REGISTRATION_TOKEN、CONSUL_KV_TOKEN、CONSUL_HEALTH_CHECK_TOKEN。写入各服务的配置文件或环境变量中，供服务注册、发现等功能使用。
 
 ### 3. 启动Fetcher
 请参考 [Fetcher 服务启动指南](Fetcher/README.md) 获取完整的启动说明，包括：
