@@ -25,4 +25,5 @@ jobs:
           context: ./demo
           file: ./demo/Dockerfile
           push: true
-          tags: ${{ secrets.DOCKERHUB_USERNAME }}/fastkol-demo:latest 
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/fastkol-demo:latest
+          no-cache: true
