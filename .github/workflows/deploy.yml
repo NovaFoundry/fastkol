@@ -56,7 +56,7 @@ jobs:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
-          source: "docker/environments/prod/*"
+          source: "docker/environments/prod/.* docker/environments/prod/*"
           target: "${{ secrets.DEPLOY_TARGET }}"
 
       - name: Deploy on target server
