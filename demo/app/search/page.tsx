@@ -39,7 +39,7 @@ export default function SearchPage() {
   const handleSubmit = async (values: any) => {
     setIsLoading(true);
     try {
-      const response = await fetchTask('/fetcher/fetch/search', {
+      const response = await fetchTask('/fetch/search', {
         platform: values.platform,
         query: values.query,
         count: values.count || 100,

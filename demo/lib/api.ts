@@ -24,7 +24,7 @@ export async function fetchTask(
 }
 
 export async function getTaskStatus(taskId: string): Promise<TaskStatusResponse> {
-  const url = `${API_HOST}/fetcher/task/${taskId}`;
+  const url = `${API_HOST}/task/${taskId}`;
   const response = await fetch(url);
   if (!response.ok) throw new Error('Failed to get task status');
   return response.json();
