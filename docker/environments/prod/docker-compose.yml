@@ -100,7 +100,7 @@ services:
     image: hujia7812556/fastkol-admin:latest
     container_name: admin
     volumes:
-      - ./admin/config.yaml:/configs/config.yaml
+      - ./admin/config.yaml:/app/configs/config.yaml
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.admin.rule=PathPrefix(`/admin`)"
