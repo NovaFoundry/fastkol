@@ -13,7 +13,7 @@ jobs:
 
       - name: Generate .env file from secret
         run: |
-          echo "${{ secrets.DOCKER_COMPOSE_ENV }}" > docker/environments/prod/.env
+          printf '%s' "${{ secrets.DOCKER_COMPOSE_ENV }}" > docker/environments/prod/.env   # printf '%s' 不会对 $ 做变量替换，适合处理traefik密码
 
       - name: Create target directory on remote server
         uses: appleboy/ssh-action@v0.1.10
