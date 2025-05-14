@@ -14,11 +14,17 @@ jobs:
       - name: Generate .env files from secrets
         env:
           DOCKER_COMPOSE_ENV: ${{ secrets.DOCKER_COMPOSE_ENV }}
+          DEMO_ENV: ${{ secrets.DEMO_ENV }}
           ADMIN_CONFIG: ${{ secrets.ADMIN_CONFIG }}
         run: |
           # 这样可以正确输出里面的$符号
           cat > docker/environments/prod/.env <<EOF
           $DOCKER_COMPOSE_ENV
+          EOF
+
+          mkdir -p docker/environments/prod/demo
+          cat > docker/environments/prod/demo/.env <<EOF
+          $DEMO_ENV
           EOF
 
           mkdir -p docker/environments/prod/admin
