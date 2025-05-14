@@ -27,7 +27,7 @@ jobs:
           echo "CONSUL_TRAEFIK_USER_PWD=${{ secrets.CONSUL_TRAEFIK_USER_PWD }}" >> $GITHUB_ENV
           echo "TRAEFIK_HTTP_PORT=${{ secrets.TRAEFIK_HTTP_PORT }}" >> $GITHUB_ENV
           echo "TRAEFIK_HTTPS_PORT=${{ secrets.TRAEFIK_HTTPS_PORT }}" >> $GITHUB_ENV
-          echo "TRAEFIK_DASHBOARD_PORT=${{ secrets.TRAEFIK_DASHBOARD_PORT }}" >> $GITHUB_EN
+          echo "TRAEFIK_DASHBOARD_PORT=${{ secrets.TRAEFIK_DASHBOARD_PORT }}" >> $GITHUB_ENV
           echo "DEMO_HTTP_PORT=${{ secrets.DEMO_HTTP_PORT }}" >> $GITHUB_ENV
           echo "DEMO_HOST=${{ secrets.DEMO_HOST }}" >> $GITHUB_ENV
 
