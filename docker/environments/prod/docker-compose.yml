@@ -90,6 +90,8 @@ services:
     networks:
       - fastkol_network
     restart: unless-stopped
+    volumes:
+      - ./demo/.env:/app/.env
 
 networks:
   fastkol_network:
