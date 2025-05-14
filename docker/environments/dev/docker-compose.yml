@@ -75,20 +75,20 @@ services:
       - fastkol_network
     restart: unless-stopped
 
-  # demo:
-  #   build:
-  #     context: ../../../demo
-  #     dockerfile: Dockerfile
-  #   container_name: demo
-  #   environment:
-  #     - NODE_ENV=production
-  #   networks:
-  #     - fastkol_network
-  #   restart: unless-stopped
-  #   labels:
-  #     - "traefik.enable=true"
-  #     - "traefik.http.routers.demo.rule=Host(`${DEMO_HOST}`)"
-  #     - "traefik.http.routers.demo.entrypoints=web"
+  demo:
+    build:
+      context: ../../../demo
+      dockerfile: Dockerfile
+    container_name: demo
+    environment:
+      - NODE_ENV=production
+    networks:
+      - fastkol_network
+    restart: unless-stopped
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.demo.rule=Host(`${DEMO_HOST}`)"
+      - "traefik.http.routers.demo.entrypoints=web"
 
 networks:
   fastkol_network:

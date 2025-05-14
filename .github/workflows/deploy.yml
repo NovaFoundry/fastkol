@@ -14,10 +14,16 @@ jobs:
       - name: Generate .env files from secrets
         env:
           DOCKER_COMPOSE_ENV: ${{ secrets.DOCKER_COMPOSE_ENV }}
+          ADMIN_CONFIG: ${{ secrets.ADMIN_CONFIG }}
         run: |
           # 这样可以正确输出里面的$符号
           cat > docker/environments/prod/.env <<EOF
           $DOCKER_COMPOSE_ENV
+          EOF
+
+          mkdir -p docker/environments/prod/admin
+          cat > docker/environments/prod/admin/.env <<EOF
+          $ADMIN_CONFIG
           EOF
 
       - name: Create target directory on remote server
@@ -35,7 +41,11 @@ jobs:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
-          source: "docker/environments/prod/*,docker/environments/prod/.env,docker/environments/prod/demo/.env"
+          source: |
+            docker/environments/prod/*
+            docker/environments/prod/.env
+            docker/environments/prod/demo/.env
+            docker/environments/prod/admin/.env
           target: "${{ secrets.DEPLOY_TARGET }}"
           strip_components: 3
 

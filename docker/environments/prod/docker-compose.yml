@@ -98,6 +98,28 @@ services:
       - consul
       - traefik
 
+  admin:
+    image: hujia7812556/fastkol-admin:latest
+    container_name: admin
+    volumes:
+      - ./admin/config.yaml:/configs/config.yaml
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.admin.rule=PathPrefix(`/admin`)"
+      - "traefik.http.routers.admin.entrypoints=web"
+      - "traefik.http.services.admin.loadbalancer.server.port=8000"
+      - "traefik.http.routers.admin.middlewares=admin-stripprefix"
+      - "traefik.http.middlewares.admin-stripprefix.stripprefix.prefixes=/admin"
+
+    networks:
+      - fastkol_network
+    restart: unless-stopped
+    depends_on:
+      - postgres
+      - redis
+      - consul
+      - traefik
+
 networks:
   fastkol_network:
     driver: bridge
