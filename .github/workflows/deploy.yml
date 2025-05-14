@@ -41,6 +41,15 @@ jobs:
           export $(cat $GITHUB_ENV | xargs)
           envsubst < .env.template > .env
 
+      - name: Create target directory on remote server
+        uses: appleboy/ssh-action@v0.1.10
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            mkdir -p ${{ secrets.DEPLOY_TARGET }}
+
       - name: Sync prod directory to target server
         uses: appleboy/scp-action@v0.1.4
         with:
