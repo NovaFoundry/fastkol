@@ -18,6 +18,8 @@ jobs:
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Generate .env from secrets
+        run: echo "${{ secrets.DEMO_ENV }}" > demo/.env
       - uses: docker/build-push-action@v5
         with:
           context: ./demo
