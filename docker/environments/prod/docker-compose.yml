@@ -74,6 +74,8 @@ services:
     networks:
       - fastkol_network
     restart: unless-stopped
+    depends_on:
+      - consul
 
   demo:
     image: hujia7812556/fastkol-demo:latest
@@ -92,6 +94,9 @@ services:
     restart: unless-stopped
     volumes:
       - ./demo/.env:/app/.env
+    depends_on:
+      - consul
+      - traefik
 
 networks:
   fastkol_network:
