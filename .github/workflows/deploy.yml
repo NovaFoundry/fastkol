@@ -13,9 +13,7 @@ jobs:
 
       - name: Generate .env file from secret
         run: |
-          cat <<'EOF' > docker/environments/prod/.env
-${{ secrets.DOCKER_COMPOSE_ENV }}
-EOF
+          echo "${{ secrets.DOCKER_COMPOSE_ENV }}" > docker/environments/prod/.env
 
       - name: Create target directory on remote server
         uses: appleboy/ssh-action@v0.1.10
