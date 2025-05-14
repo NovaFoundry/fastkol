@@ -58,7 +58,7 @@ jobs:
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           source: "docker/environments/prod/*,docker/environments/prod/.env"
           target: "${{ secrets.DEPLOY_TARGET }}"
-          strip_components: 1
+          strip_components: 3
 
       - name: Deploy on target server
         uses: appleboy/ssh-action@v0.1.10
