@@ -69,6 +69,9 @@ export default function SimilarPage() {
           setResults(response.results);
           message.success('Task completed!');
           clearInterval(interval);
+        } else if (response.status === 'failed') {
+          message.error('Task failed!');
+          clearInterval(interval);
         }
       } catch (error) {
         console.error('Error polling status:', error);
