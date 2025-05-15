@@ -117,7 +117,7 @@ services:
       - ./admin/config.yaml:/app/configs/config.yaml
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.admin.rule=PathPrefix(`/admin`)"
+      - "traefik.http.routers.admin.rule=Host(`${FASTKOL_API_HOST}`) && PathPrefix(`/admin`)"
       - "traefik.http.routers.admin.entrypoints=web"
       - "traefik.http.routers.admin.entrypoints=websecure"
       - "traefik.http.routers.admin.tls.certresolver=cloudflare"
@@ -140,7 +140,7 @@ services:
       - ./fetcher-web/config.yaml:/app/config/config.yaml
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.fetcher.rule=PathPrefix(`/fetcher`)"
+      - "traefik.http.routers.fetcher.rule=Host(`${FASTKOL_API_HOST}`) && PathPrefix(`/fetcher`)"
       - "traefik.http.routers.fetcher.entrypoints=web"
       - "traefik.http.routers.fetcher.entrypoints=websecure"
       - "traefik.http.routers.fetcher.tls.certresolver=cloudflare"
