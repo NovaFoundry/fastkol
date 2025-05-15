@@ -443,6 +443,16 @@ class TwitterFetcher(BaseFetcher):
                     request_kwargs["proxy"] = proxy
                 
                 async with session.get(url, **request_kwargs) as response:
+                    if response.status != 200:
+                        error_text = await response.text()
+                        self.logger.error(f"Twitter API 返回非 200 状态码: {response.status}, 内容: {error_text}")
+                        return []
+                    # 校验 Content-Type
+                    content_type = response.headers.get("Content-Type", "")
+                    if "application/json" not in content_type:
+                        error_text = await response.text()
+                        self.logger.error(f"返回内容类型不是 JSON: {content_type}, 内容: {error_text}")
+                        return []
                     response_data = await response.json()
             
             # 解析响应数据
@@ -731,7 +741,10 @@ class TwitterFetcher(BaseFetcher):
             # 循环获取用户，直到达到请求的数量或没有更多用户
             while len(processed_uids) < count:
                 # 使用新的方法获取用户
-                users, cursor = await self._find_users_by_search(query, cursor)
+                success, msg, users, cursor = await self._find_users_by_search(query, cursor)
+                if not success:
+                    self.logger.error(f"搜索用户失败: {msg}")
+                    return (False, msg, all_users)
 
                 for user in users:
                     uid = user.get("uid")
@@ -747,7 +760,6 @@ class TwitterFetcher(BaseFetcher):
                     no_new_data_count = 0
                     last_user_count = len(processed_uids)
 
-                
                 # 如果没有cursor或已经达到请求的数量，退出循环
                 if not cursor or len(all_users) >= count:
                     break
@@ -769,7 +781,7 @@ class TwitterFetcher(BaseFetcher):
             self.logger.error(traceback.format_exc())
             return (False, error_msg, [])
 
-    async def _find_users_by_search(self, query: str, cursor: str = None) -> Tuple[List[Dict[str, Any]], str]:
+    async def _find_users_by_search(self, query: str, cursor: str = None) -> Tuple[bool, str, List[Dict[str, Any]], str]:
         """通过搜索获取一页用户
         
         Args:
@@ -778,7 +790,7 @@ class TwitterFetcher(BaseFetcher):
             cursor (str, optional): 分页游标，用于获取更多用户
             
         Returns:
-            Tuple[List[Dict[str, Any]], str]: 用户列表, 下一页游标
+            Tuple[bool, str, List[Dict[str, Any]], str]: 成功状态, msg, 用户列表, 下一页游标
         """
         try:
             # 准备 API 请求头
@@ -843,7 +855,7 @@ class TwitterFetcher(BaseFetcher):
             endpoint = self.api_endpoints.get("search_timeline")
             if not endpoint:
                 self.logger.error("无法获取 search_timeline API 端点")
-                return ([], None)
+                return (False, "无法获取 search_timeline API 端点", [], None)
             
             # URL 参数编码
             params = {
@@ -864,8 +876,17 @@ class TwitterFetcher(BaseFetcher):
                 request_kwargs = {"headers": headers}
                 if proxy:
                     request_kwargs["proxy"] = proxy
-                
                 async with session.get(url, **request_kwargs) as response:
+                    if response.status != 200:
+                        error_text = await response.text()
+                        self.logger.error(f"Twitter API 返回非 200 状态码: {response.status}, 内容: {error_text}")
+                        return (False, f"HTTP {response.status}", [], None)
+                    # 校验 Content-Type
+                    content_type = response.headers.get("Content-Type", "")
+                    if "application/json" not in content_type:
+                        error_text = await response.text()
+                        self.logger.error(f"返回内容类型不是 JSON: {content_type}, 内容: {error_text}")
+                        return (False, f"Content-Type is not JSON: {content_type}", [], None)
                     response_data = await response.json()
             
             # 解析响应数据
@@ -917,13 +938,13 @@ class TwitterFetcher(BaseFetcher):
                         next_cursor = entry.get("content", {}).get("value", "")
                         continue
 
-            return (users, next_cursor)
+            return (True, "success", users, next_cursor)
             
         except Exception as e:
             self.logger.error(f"获取搜索用户页面失败: {str(e)}")
             import traceback
             self.logger.error(traceback.format_exc())
-            return ([], None)
+            return (False, str(e), [], None)
 
     async def _get_twitter_acounts_from_admin_service(self) -> bool:
         """通过服务发现获取admin的IP和端口，然后发送POST请求获取Twitter账号
