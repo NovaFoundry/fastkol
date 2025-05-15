@@ -30,8 +30,8 @@ class InstagramFetcher(BaseFetcher):
         # 初始化时获取Instagram认证信息
         self.instagram_accounts = [
             {
-                'csrfToken': 'QMCCestsU61qn124dnghm34ttsziK6l5',
-                'cookie': 'ps_l=1; ps_n=1; ig_did=C9F6FC4C-4C67-491F-9620-C3F286E329C5; ig_nrcb=1; mid=ZyDt5AAEAAGHKTGYOazmdHv1MEEJ; datr=5O0gZ8Dn0ewlCn2TBfJ0b-Cr; csrftoken=QMCCestsU61qn124dnghm34ttsziK6l5; ds_user_id=3002998921; sessionid=3002998921%3AlnMf3NU621BfMl%3A8%3AAYenAosZIKeqaCoDPK4ZyCwWoDITMqVifWnvU9W22Q; wd=772x674; rur="NHA\0543002998921\0541776502501:01f7a95b22f18c128401f659c9b697ddec9b8d86145e6a317d1824cf391dff419e342d3b"',
+                'csrfToken': 'wBGAprJWQXkYc6vsnJz87xXNeCwjxR66',
+                'cookie': 'ig_did=994E101C-FE30-4B8C-AD30-ADD4BA10D14F; datr=gdjBZ3Mn3TZ3vlglZrcONNZC; mid=Z8HYgwAEAAFG1OLdoKK1W3qAE5-F; ig_nrcb=1; ps_l=1; ps_n=1; csrftoken=wBGAprJWQXkYc6vsnJz87xXNeCwjxR66; ds_user_id=74380586428; sessionid=74380586428%3AuKKhPMMUSIuo78%3A15%3AAYdTBa0xUZ4S3x7z6QYecKbyUs9mAApzLvcCz-CRSg; wd=1022x671; rur="PRN\05474380586428\0541778849931:01f79d239ab3a360161c586e84ca2538450da2ff78984273b9d1ff84d742e224de528293"',
             }
         ]  # 所有Instagram账号
         self.selected_instagram_account = self.instagram_accounts[0]
