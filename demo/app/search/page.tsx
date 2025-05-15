@@ -132,8 +132,8 @@ export default function SearchPage() {
                 >
                   <Option value="twitter">Twitter</Option>
                   <Option value="instagram">Instagram</Option>
-                  <Option value="tiktok">TikTok</Option>
-                  <Option value="youtube">YouTube</Option>
+                  {/* <Option value="tiktok">TikTok</Option>
+                  <Option value="youtube">YouTube</Option> */}
                 </Select>
               </Form.Item>
 
