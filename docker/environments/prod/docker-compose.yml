@@ -46,6 +46,8 @@ services:
       - "traefik.enable=true"
       - "traefik.http.routers.consul.rule=Host(`${CONSUL_HOST}`)"
       - "traefik.http.routers.consul.entrypoints=web"
+      - "traefik.http.routers.consul.entrypoints=websecure"
+      - "traefik.http.routers.consul.tls.certresolver=cloudflare"
       - "traefik.http.services.consul.loadbalancer.server.port=${CONSUL_HTTP_PORT}"
       - "traefik.http.routers.consul.middlewares=consul-auth"
       - "traefik.http.middlewares.consul-auth.basicauth.users=${CONSUL_TRAEFIK_USER_PWD}"
@@ -71,7 +73,6 @@ services:
       - --certificatesresolvers.cloudflare.acme.email=${TRAEFIK_EMAIL}
       - --certificatesresolvers.cloudflare.acme.storage=/letsencrypt/acme.json
       - --certificatesresolvers.cloudflare.acme.dnschallenge.delaybeforecheck=0
-      - --certificatesresolvers.cloudflare.acme.domains=${TRAEFIK_ACME_DOMAINS}
     ports:
       - "${TRAEFIK_HTTP_PORT}:80" # HTTP
       - "${TRAEFIK_HTTPS_PORT}:443" # HTTPS
