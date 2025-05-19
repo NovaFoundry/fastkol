@@ -55,11 +55,6 @@ async def test_fetcher(platform, action, params):
             result = await fetcher.fetch_user_tweets(username, count, uid=uid)
             # 打印获取到的推文数量
             logger.info(f"成功获取 {len(result)} 条推文")
-        elif action == "login":
-            email = params.get("email")
-            password = params.get("password")
-            logger.info(f"尝试登录账号: {email}")
-            result = await fetcher.login(email, password)
         else:
             raise ValueError(f"不支持的操作: {action}")
         
@@ -77,10 +72,10 @@ async def test_fetcher(platform, action, params):
 
 if __name__ == "__main__":
     # 示例: 测试 Twitter 爬虫
-    platform = "twitter"
-    action = "find_users_by_search"  # 修改为测试搜索用户
+    platform = "instagram"
+    action = "fetch_user_profile"  # 修改为测试搜索用户
     params = {
-        "query": "关税",  # 搜索关键词
+        "username": "64325658281",  # 搜索关键词
         "count": 100  # 要获取的用户数量
     }
     

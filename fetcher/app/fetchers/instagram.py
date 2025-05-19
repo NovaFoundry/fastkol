@@ -30,8 +30,8 @@ class InstagramFetcher(BaseFetcher):
         # 初始化时获取Instagram认证信息
         self.instagram_accounts = [
             {
-                'csrfToken': 'wBGAprJWQXkYc6vsnJz87xXNeCwjxR66',
-                'cookie': 'ig_did=994E101C-FE30-4B8C-AD30-ADD4BA10D14F; datr=gdjBZ3Mn3TZ3vlglZrcONNZC; mid=Z8HYgwAEAAFG1OLdoKK1W3qAE5-F; ig_nrcb=1; ps_l=1; ps_n=1; csrftoken=wBGAprJWQXkYc6vsnJz87xXNeCwjxR66; ds_user_id=74380586428; sessionid=74380586428%3AuKKhPMMUSIuo78%3A15%3AAYdTBa0xUZ4S3x7z6QYecKbyUs9mAApzLvcCz-CRSg; wd=1022x671; rur="PRN\05474380586428\0541778849931:01f79d239ab3a360161c586e84ca2538450da2ff78984273b9d1ff84d742e224de528293"',
+                'csrfToken': 'S57bd5fAVgobtU6JsSsOl8Vo0d26Pg2u',
+                'cookie': 'ig_did=994E101C-FE30-4B8C-AD30-ADD4BA10D14F; datr=gdjBZ3Mn3TZ3vlglZrcONNZC; mid=Z8HYgwAEAAFG1OLdoKK1W3qAE5-F; ig_nrcb=1; ps_l=1; ps_n=1; csrftoken=S57bd5fAVgobtU6JsSsOl8Vo0d26Pg2u; ds_user_id=74544247599; sessionid=74544247599%3AAIG7IzRIwOCa9o%3A24%3AAYfGnqcxAyqg6qiMTUwQ61qCgj1_2BFKqMwkPjynlQ; wd=711x671; rur="CCO\05474544247599\0541779186799:01f71bcf1bd6d008987c94b42a655b6bce4383dedd9b93c318d339dbd7ca6fa54c073c1b',
             }
         ]  # 所有Instagram账号
         self.selected_instagram_account = self.instagram_accounts[0]
@@ -64,6 +64,26 @@ class InstagramFetcher(BaseFetcher):
         delay = random.uniform(min_seconds, max_seconds)
         await asyncio.sleep(delay)
     
+    async def _extract_email_from_text(self, text: str) -> str:
+        """Extract email address from text if present
+        
+        Args:
+            text (str): Text to extract email from
+            
+        Returns:
+            str: Extracted email or empty string if none found
+        """
+        if not text:
+            return ""
+            
+        # Regular expression for email matching
+        email_pattern = r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}'
+        match = re.search(email_pattern, text)
+        
+        if match:
+            return match.group(0)
+        return ""
+
     async def fetch_user_profile(self, uid: str) -> Dict[str, Any]:
         """获取用户主页信息"""
         self.logger.info(f"开始获取 Instagram 用户资料, uid: {uid}")
@@ -124,6 +144,12 @@ class InstagramFetcher(BaseFetcher):
                 self.logger.error("无法获取用户资料")
                 return {}
             
+            # 获取用户简介
+            bio = user_data.get("biography", "")
+            
+            # 从简介中提取邮箱
+            email_in_bio = await self._extract_email_from_text(bio)
+            
             # 构建用户资料
             profile_data = {
                 "uid":uid,
@@ -133,7 +159,8 @@ class InstagramFetcher(BaseFetcher):
                 "followers_count": user_data.get("follower_count", 0),
                 "following_count": user_data.get("following_count", 0),
                 "post_count": user_data.get("media_count", 0),
-                "bio": user_data.get("biography", ""),
+                "bio": bio,
+                "email_in_bio": email_in_bio,
                 "url": f"https://www.instagram.com/{user_data.get('username', '')}"
             }
             
