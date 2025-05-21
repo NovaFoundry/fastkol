@@ -31,6 +31,8 @@ WORKDIR /app
 
 # 拷贝配置文件（如有需要可调整路径）
 COPY --from=builder /app/admin ./
+# 拷贝 migrations 目录
+COPY --from=builder /app/migrations ./migrations
 
 # 设置时区（可选）
 RUN apk add --no-cache tzdata && \
