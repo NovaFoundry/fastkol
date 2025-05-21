@@ -29,14 +29,16 @@ func NewTwitterAccountService(uc *biz.TwitterAccountUsecase, logger log.Logger) 
 // CreateTwitterAccount 创建一个Twitter账号
 func (s *TwitterAccountService) CreateTwitterAccount(ctx context.Context, req *v1.CreateTwitterAccountRequest) (*v1.CreateTwitterAccountReply, error) {
 	account := &biz.TwitterAccount{
-		Username:  req.Username,
-		Email:     req.Email,
-		Phone:     req.Phone,
-		Password:  req.Password,
-		AuthToken: req.AuthToken,
-		CsrfToken: req.CsrfToken,
-		Cookie:    req.Cookie,
-		Status:    req.Status,
+		Username: req.Username,
+		Email:    req.Email,
+		Phone:    req.Phone,
+		Password: req.Password,
+		Headers: biz.TwitterAccountHeaders{
+			Authorization: req.Headers.Authorization,
+			XCsrfToken:    req.Headers.XCsrfToken,
+			Cookie:        req.Headers.Cookie,
+		},
+		Status: req.Status,
 	}
 
 	result, err := s.uc.Create(ctx, account)
@@ -46,13 +48,15 @@ func (s *TwitterAccountService) CreateTwitterAccount(ctx context.Context, req *v
 
 	return &v1.CreateTwitterAccountReply{
 		Account: &v1.TwitterAccountInfo{
-			Id:        int64(result.ID),
-			Username:  result.Username,
-			Email:     result.Email,
-			Phone:     result.Phone,
-			AuthToken: result.AuthToken,
-			CsrfToken: result.CsrfToken,
-			Cookie:    result.Cookie,
+			Id:       int64(result.ID),
+			Username: result.Username,
+			Email:    result.Email,
+			Phone:    result.Phone,
+			Headers: &v1.Headers{
+				Authorization: result.Headers.Authorization,
+				XCsrfToken:    result.Headers.XCsrfToken,
+				Cookie:        result.Headers.Cookie,
+			},
 			Status:    result.Status,
 			CreatedAt: result.CreatedAt.Format(time.RFC3339),
 			UpdatedAt: result.UpdatedAt.Format(time.RFC3339),
@@ -63,15 +67,17 @@ func (s *TwitterAccountService) CreateTwitterAccount(ctx context.Context, req *v
 // UpdateTwitterAccount 更新一个Twitter账号
 func (s *TwitterAccountService) UpdateTwitterAccount(ctx context.Context, req *v1.UpdateTwitterAccountRequest) (*v1.UpdateTwitterAccountReply, error) {
 	account := &biz.TwitterAccount{
-		ID:        uint(req.Id),
-		Username:  req.Username,
-		Email:     req.Email,
-		Phone:     req.Phone,
-		Password:  req.Password,
-		AuthToken: req.AuthToken,
-		CsrfToken: req.CsrfToken,
-		Cookie:    req.Cookie,
-		Status:    req.Status,
+		ID:       uint(req.Id),
+		Username: req.Username,
+		Email:    req.Email,
+		Phone:    req.Phone,
+		Password: req.Password,
+		Headers: biz.TwitterAccountHeaders{
+			Authorization: req.Headers.Authorization,
+			XCsrfToken:    req.Headers.XCsrfToken,
+			Cookie:        req.Headers.Cookie,
+		},
+		Status: req.Status,
 	}
 
 	result, err := s.uc.Update(ctx, account)
@@ -80,13 +86,15 @@ func (s *TwitterAccountService) UpdateTwitterAccount(ctx context.Context, req *v
 	}
 
 	return &v1.UpdateTwitterAccountReply{
-		Id:        int64(result.ID),
-		Username:  result.Username,
-		Email:     result.Email,
-		Phone:     result.Phone,
-		AuthToken: result.AuthToken,
-		CsrfToken: result.CsrfToken,
-		Cookie:    result.Cookie,
+		Id:       int64(result.ID),
+		Username: result.Username,
+		Email:    result.Email,
+		Phone:    result.Phone,
+		Headers: &v1.Headers{
+			Authorization: result.Headers.Authorization,
+			XCsrfToken:    result.Headers.XCsrfToken,
+			Cookie:        result.Headers.Cookie,
+		},
 		Status:    result.Status,
 		UpdatedAt: result.UpdatedAt.Format(time.RFC3339),
 	}, nil
@@ -113,13 +121,15 @@ func (s *TwitterAccountService) GetTwitterAccount(ctx context.Context, req *v1.G
 
 	return &v1.GetTwitterAccountReply{
 		Account: &v1.TwitterAccountInfo{
-			Id:        int64(account.ID),
-			Username:  account.Username,
-			Email:     account.Email,
-			Phone:     account.Phone,
-			AuthToken: account.AuthToken,
-			CsrfToken: account.CsrfToken,
-			Cookie:    account.Cookie,
+			Id:       int64(account.ID),
+			Username: account.Username,
+			Email:    account.Email,
+			Phone:    account.Phone,
+			Headers: &v1.Headers{
+				Authorization: account.Headers.Authorization,
+				XCsrfToken:    account.Headers.XCsrfToken,
+				Cookie:        account.Headers.Cookie,
+			},
 			Status:    account.Status,
 			CreatedAt: account.CreatedAt.Format(time.RFC3339),
 			UpdatedAt: account.UpdatedAt.Format(time.RFC3339),
@@ -140,13 +150,15 @@ func (s *TwitterAccountService) ListTwitterAccounts(ctx context.Context, req *v1
 
 	for _, account := range accounts {
 		result.Accounts = append(result.Accounts, &v1.TwitterAccountInfo{
-			Id:        int64(account.ID),
-			Username:  account.Username,
-			Email:     account.Email,
-			Phone:     account.Phone,
-			AuthToken: account.AuthToken,
-			CsrfToken: account.CsrfToken,
-			Cookie:    account.Cookie,
+			Id:       int64(account.ID),
+			Username: account.Username,
+			Email:    account.Email,
+			Phone:    account.Phone,
+			Headers: &v1.Headers{
+				Authorization: account.Headers.Authorization,
+				XCsrfToken:    account.Headers.XCsrfToken,
+				Cookie:        account.Headers.Cookie,
+			},
 			Status:    account.Status,
 			CreatedAt: account.CreatedAt.Format(time.RFC3339),
 			UpdatedAt: account.UpdatedAt.Format(time.RFC3339),
@@ -169,13 +181,15 @@ func (s *TwitterAccountService) LockTwitterAccounts(ctx context.Context, req *v1
 
 	for _, account := range accounts {
 		reply.Accounts = append(reply.Accounts, &v1.TwitterAccountInfo{
-			Id:        int64(account.ID),
-			Username:  account.Username,
-			Email:     account.Email,
-			Phone:     account.Phone,
-			AuthToken: account.AuthToken,
-			CsrfToken: account.CsrfToken,
-			Cookie:    account.Cookie,
+			Id:       int64(account.ID),
+			Username: account.Username,
+			Email:    account.Email,
+			Phone:    account.Phone,
+			Headers: &v1.Headers{
+				Authorization: account.Headers.Authorization,
+				XCsrfToken:    account.Headers.XCsrfToken,
+				Cookie:        account.Headers.Cookie,
+			},
 			Status:    account.Status,
 			CreatedAt: account.CreatedAt.Format(time.RFC3339),
 			UpdatedAt: account.UpdatedAt.Format(time.RFC3339),

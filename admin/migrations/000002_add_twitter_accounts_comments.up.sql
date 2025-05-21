@@ -1,0 +1,11 @@
+COMMENT ON TABLE twitter_accounts IS 'Twitter账号信息表';
+COMMENT ON COLUMN twitter_accounts.id IS '主键ID';
+COMMENT ON COLUMN twitter_accounts.created_at IS '创建时间';
+COMMENT ON COLUMN twitter_accounts.updated_at IS '更新时间';
+COMMENT ON COLUMN twitter_accounts.deleted_at IS '删除时间（软删除）';
+COMMENT ON COLUMN twitter_accounts.username IS 'Twitter用户名';
+COMMENT ON COLUMN twitter_accounts.email IS '邮箱地址';
+COMMENT ON COLUMN twitter_accounts.phone IS '手机号码';
+COMMENT ON COLUMN twitter_accounts.password IS '密码';
+COMMENT ON COLUMN twitter_accounts.headers IS 'HTTP请求头信息，包含authorization、x-csrf-token和cookie';
+COMMENT ON COLUMN twitter_accounts.status IS '账号状态：normal-正常，login_expired-登录已失效，disabled-已禁用，deprecated-已废弃'; 

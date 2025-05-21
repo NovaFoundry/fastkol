@@ -65,16 +65,21 @@ service TwitterAccount {
   }
 }
 
+// Headers消息定义
+message Headers {
+  string authorization = 1 [json_name = "authorization"];
+  string x_csrf_token = 2 [json_name = "x-csrf-token"];
+  string cookie = 3 [json_name = "cookie"];
+}
+
 // 创建Twitter账号请求
 message CreateTwitterAccountRequest {
   string username = 1;
   string email = 2;
   string phone = 3;
   string password = 4;
-  string auth_token = 5;
-  string csrf_token = 6;
-  string cookie = 7;
-  string status = 8;
+  Headers headers = 5;
+  string status = 6;
 }
 
 // 创建Twitter账号响应
@@ -89,10 +94,8 @@ message UpdateTwitterAccountRequest {
   string email = 3;
   string phone = 4;
   string password = 5;
-  string auth_token = 6;
-  string csrf_token = 7;
-  string cookie = 8;
-  string status = 9;
+  Headers headers = 6;
+  string status = 7;
 }
 
 // 更新Twitter账号响应
@@ -101,11 +104,9 @@ message UpdateTwitterAccountReply {
   string username = 2;
   string email = 3;
   string phone = 4;
-  string auth_token = 5;
-  string csrf_token = 6;
-  string cookie = 7;
-  string status = 8;
-  string updated_at = 9;
+  Headers headers = 5;
+  string status = 6;
+  string updated_at = 7;
 }
 
 // 删除Twitter账号请求
@@ -170,10 +171,8 @@ message TwitterAccountInfo {
   string username = 2;
   string email = 3;
   string phone = 4;
-  string auth_token = 5;
-  string csrf_token = 6;
-  string cookie = 7;
-  string status = 8;
-  string created_at = 9;
-  string updated_at = 10;
+  Headers headers = 5;
+  string status = 6;
+  string created_at = 7;
+  string updated_at = 8;
 } 

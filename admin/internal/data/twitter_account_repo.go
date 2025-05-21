@@ -28,14 +28,16 @@ func NewTwitterAccountRepo(data *Data, logger log.Logger) biz.TwitterAccountRepo
 // Create 创建一个Twitter账号
 func (r *twitterAccountRepo) Create(ctx context.Context, ta *biz.TwitterAccount) (*biz.TwitterAccount, error) {
 	account := &TwitterAccount{
-		Username:  ta.Username,
-		Email:     ta.Email,
-		Phone:     ta.Phone,
-		Password:  ta.Password,
-		AuthToken: ta.AuthToken,
-		CsrfToken: ta.CsrfToken,
-		Cookie:    ta.Cookie,
-		Status:    AccountStatus(ta.Status),
+		Username: ta.Username,
+		Email:    ta.Email,
+		Phone:    ta.Phone,
+		Password: ta.Password,
+		Headers: TwitterAccountHeaders{
+			Authorization: ta.Headers.Authorization,
+			XCsrfToken:    ta.Headers.XCsrfToken,
+			Cookie:        ta.Headers.Cookie,
+		},
+		Status: AccountStatus(ta.Status),
 	}
 
 	result := r.data.db.WithContext(ctx).Create(account)
@@ -51,25 +53,29 @@ func (r *twitterAccountRepo) Create(ctx context.Context, ta *biz.TwitterAccount)
 		Email:     account.Email,
 		Phone:     account.Phone,
 		Password:  account.Password,
-		AuthToken: account.AuthToken,
-		CsrfToken: account.CsrfToken,
-		Cookie:    account.Cookie,
-		Status:    string(account.Status),
+		Headers: biz.TwitterAccountHeaders{
+			Authorization: account.Headers.Authorization,
+			XCsrfToken:    account.Headers.XCsrfToken,
+			Cookie:        account.Headers.Cookie,
+		},
+		Status: string(account.Status),
 	}, nil
 }
 
 // Update 更新一个Twitter账号
 func (r *twitterAccountRepo) Update(ctx context.Context, ta *biz.TwitterAccount) (*biz.TwitterAccount, error) {
 	account := &TwitterAccount{
-		ID:        ta.ID,
-		Username:  ta.Username,
-		Email:     ta.Email,
-		Phone:     ta.Phone,
-		Password:  ta.Password,
-		AuthToken: ta.AuthToken,
-		CsrfToken: ta.CsrfToken,
-		Cookie:    ta.Cookie,
-		Status:    AccountStatus(ta.Status),
+		ID:       ta.ID,
+		Username: ta.Username,
+		Email:    ta.Email,
+		Phone:    ta.Phone,
+		Password: ta.Password,
+		Headers: TwitterAccountHeaders{
+			Authorization: ta.Headers.Authorization,
+			XCsrfToken:    ta.Headers.XCsrfToken,
+			Cookie:        ta.Headers.Cookie,
+		},
+		Status: AccountStatus(ta.Status),
 	}
 
 	result := r.data.db.WithContext(ctx).Model(&TwitterAccount{}).Where("id = ?", ta.ID).Updates(account)
@@ -95,10 +101,12 @@ func (r *twitterAccountRepo) Update(ctx context.Context, ta *biz.TwitterAccount)
 		Email:     updatedAccount.Email,
 		Phone:     updatedAccount.Phone,
 		Password:  updatedAccount.Password,
-		AuthToken: updatedAccount.AuthToken,
-		CsrfToken: updatedAccount.CsrfToken,
-		Cookie:    updatedAccount.Cookie,
-		Status:    string(updatedAccount.Status),
+		Headers: biz.TwitterAccountHeaders{
+			Authorization: updatedAccount.Headers.Authorization,
+			XCsrfToken:    updatedAccount.Headers.XCsrfToken,
+			Cookie:        updatedAccount.Headers.Cookie,
+		},
+		Status: string(updatedAccount.Status),
 	}, nil
 }
 
@@ -134,10 +142,12 @@ func (r *twitterAccountRepo) GetByID(ctx context.Context, id uint) (*biz.Twitter
 		Email:     account.Email,
 		Phone:     account.Phone,
 		Password:  account.Password,
-		AuthToken: account.AuthToken,
-		CsrfToken: account.CsrfToken,
-		Cookie:    account.Cookie,
-		Status:    string(account.Status),
+		Headers: biz.TwitterAccountHeaders{
+			Authorization: account.Headers.Authorization,
+			XCsrfToken:    account.Headers.XCsrfToken,
+			Cookie:        account.Headers.Cookie,
+		},
+		Status: string(account.Status),
 	}, nil
 }
 
@@ -175,10 +185,12 @@ func (r *twitterAccountRepo) List(ctx context.Context, pageSize, pageNum int, st
 			Email:     account.Email,
 			Phone:     account.Phone,
 			Password:  account.Password,
-			AuthToken: account.AuthToken,
-			CsrfToken: account.CsrfToken,
-			Cookie:    account.Cookie,
-			Status:    string(account.Status),
+			Headers: biz.TwitterAccountHeaders{
+				Authorization: account.Headers.Authorization,
+				XCsrfToken:    account.Headers.XCsrfToken,
+				Cookie:        account.Headers.Cookie,
+			},
+			Status: string(account.Status),
 		})
 	}
 
@@ -262,10 +274,12 @@ func (r *twitterAccountRepo) GetAndLockTwitterAccounts(ctx context.Context, coun
 			Email:     account.Email,
 			Phone:     account.Phone,
 			Password:  account.Password,
-			AuthToken: account.AuthToken,
-			CsrfToken: account.CsrfToken,
-			Cookie:    account.Cookie,
-			Status:    string(account.Status),
+			Headers: biz.TwitterAccountHeaders{
+				Authorization: account.Headers.Authorization,
+				XCsrfToken:    account.Headers.XCsrfToken,
+				Cookie:        account.Headers.Cookie,
+			},
+			Status: string(account.Status),
 		})
 	}
 
@@ -312,9 +326,11 @@ func (r *twitterAccountRepo) GetByUsername(ctx context.Context, username string)
 		Email:     account.Email,
 		Phone:     account.Phone,
 		Password:  account.Password,
-		AuthToken: account.AuthToken,
-		CsrfToken: account.CsrfToken,
-		Cookie:    account.Cookie,
-		Status:    string(account.Status),
+		Headers: biz.TwitterAccountHeaders{
+			Authorization: account.Headers.Authorization,
+			XCsrfToken:    account.Headers.XCsrfToken,
+			Cookie:        account.Headers.Cookie,
+		},
+		Status: string(account.Status),
 	}, nil
 }

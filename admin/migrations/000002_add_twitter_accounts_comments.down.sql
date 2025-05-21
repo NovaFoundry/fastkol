@@ -1,0 +1,11 @@
+COMMENT ON TABLE twitter_accounts IS NULL;
+COMMENT ON COLUMN twitter_accounts.id IS NULL;
+COMMENT ON COLUMN twitter_accounts.created_at IS NULL;
+COMMENT ON COLUMN twitter_accounts.updated_at IS NULL;
+COMMENT ON COLUMN twitter_accounts.deleted_at IS NULL;
+COMMENT ON COLUMN twitter_accounts.username IS NULL;
+COMMENT ON COLUMN twitter_accounts.email IS NULL;
+COMMENT ON COLUMN twitter_accounts.phone IS NULL;
+COMMENT ON COLUMN twitter_accounts.password IS NULL;
+COMMENT ON COLUMN twitter_accounts.headers IS NULL;
+COMMENT ON COLUMN twitter_accounts.status IS NULL; 

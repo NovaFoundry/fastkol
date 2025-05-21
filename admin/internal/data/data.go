@@ -6,6 +6,9 @@ import (
 	"time"
 
 	"github.com/go-kratos/kratos/v2/log"
+	"github.com/golang-migrate/migrate/v4"
+	_ "github.com/golang-migrate/migrate/v4/database/postgres"
+	_ "github.com/golang-migrate/migrate/v4/source/file"
 	"github.com/google/wire"
 	"github.com/redis/go-redis/v9"
 	"gorm.io/driver/postgres"
@@ -31,9 +34,25 @@ func NewData(c *conf.Data, logger log.Logger) (*Data, func(), error) {
 		return nil, nil, err
 	}
 
-	// Auto migrate the schema
-	err = db.AutoMigrate(&TwitterAccount{})
+	// 设置连接池参数
+	sqlDB, err := db.DB()
 	if err != nil {
+		return nil, nil, err
+	}
+	sqlDB.SetMaxIdleConns(10)
+	sqlDB.SetMaxOpenConns(100)
+	sqlDB.SetConnMaxLifetime(time.Hour)
+
+	// 运行数据库迁移
+	m, err := migrate.New(
+		"file://../../migrations",
+		c.Database.Source,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if err := m.Up(); err != nil && err != migrate.ErrNoChange {
 		return nil, nil, err
 	}
 

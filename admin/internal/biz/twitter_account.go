@@ -19,20 +19,25 @@ var (
 	ErrInvalidParameter = errors.BadRequest(v1.ErrorReason_INVALID_PARAMETER.String(), "invalid parameter")
 )
 
+// TwitterAccountHeaders 是Twitter账号的HTTP请求头信息
+type TwitterAccountHeaders struct {
+	Authorization string `json:"authorization"`
+	XCsrfToken    string `json:"x-csrf-token"`
+	Cookie        string `json:"cookie"`
+}
+
 // TwitterAccount 是Twitter账号模型
 type TwitterAccount struct {
 	ID        uint
 	CreatedAt time.Time
 	UpdatedAt time.Time
 
-	Username  string
-	Email     string
-	Phone     string
-	Password  string
-	AuthToken string
-	CsrfToken string
-	Cookie    string
-	Status    string
+	Username string
+	Email    string
+	Phone    string
+	Password string
+	Headers  TwitterAccountHeaders
+	Status   string
 }
 
 // TwitterAccountRepo 是Twitter账号仓库接口
@@ -110,14 +115,14 @@ func (uc *TwitterAccountUsecase) Update(ctx context.Context, ta *TwitterAccount)
 	if ta.Password != "" {
 		existingAccount.Password = ta.Password
 	}
-	if ta.AuthToken != "" {
-		existingAccount.AuthToken = ta.AuthToken
+	if ta.Headers.Authorization != "" {
+		existingAccount.Headers.Authorization = ta.Headers.Authorization
 	}
-	if ta.CsrfToken != "" {
-		existingAccount.CsrfToken = ta.CsrfToken
+	if ta.Headers.XCsrfToken != "" {
+		existingAccount.Headers.XCsrfToken = ta.Headers.XCsrfToken
 	}
-	if ta.Cookie != "" {
-		existingAccount.Cookie = ta.Cookie
+	if ta.Headers.Cookie != "" {
+		existingAccount.Headers.Cookie = ta.Headers.Cookie
 	}
 	if ta.Status != "" {
 		existingAccount.Status = ta.Status
