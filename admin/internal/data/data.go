@@ -44,8 +44,12 @@ func NewData(c *conf.Data, logger log.Logger) (*Data, func(), error) {
 	sqlDB.SetConnMaxLifetime(time.Hour)
 
 	// 运行数据库迁移
+	migrationsPath := c.Database.MigrationsPath
+	if migrationsPath == "" {
+		migrationsPath = "./migrations"
+	}
 	m, err := migrate.New(
-		"file://../../migrations",
+		"file://"+migrationsPath,
 		c.Database.Source,
 	)
 	if err != nil {
