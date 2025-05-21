@@ -54,6 +54,22 @@ class TwitterFetcher(BaseFetcher):
             self.proxy_enabled = False
             self.proxy_url = ''
     
+    def _get_headers(self) -> Dict[str, str]:
+        """获取请求头
+        
+        Returns:
+            Dict[str, str]: 请求头字典
+        """
+        return {
+                "authorization": self.selected_twitter_account.get('headers', {}).get('authorization', ''),
+                "x-csrf-token": self.selected_twitter_account.get('headers', {}).get('x-csrf-token', ''),
+                "cookie": self.selected_twitter_account.get('headers', {}).get('cookie', ''),
+                "user-agent": self.user_agent,
+                "content-type": "application/json",
+                "x-twitter-active-user": "yes",
+                "x-twitter-client-language": "zh-cn",
+        }
+    
     async def _random_delay(self, min_seconds=1, max_seconds=5):
         """随机延迟，模拟人类行为"""
         delay = random.uniform(min_seconds, max_seconds)
@@ -88,15 +104,7 @@ class TwitterFetcher(BaseFetcher):
                 "responsive_web_graphql_timeline_navigation_enabled":True
             }
             # 准备请求头
-            headers = {
-                "authorization": self.selected_twitter_account.get('authToken', ''),
-                "x-csrf-token": self.selected_twitter_account.get('csrfToken', ''),
-                "cookie": self.selected_twitter_account.get('cookie', ''),
-                "user-agent": self.user_agent,
-                "content-type": "application/json",
-                "x-twitter-active-user": "yes",
-                "x-twitter-client-language": "zh-cn"
-            }
+            headers = self._get_headers()
             
             # 构建请求 URL
             endpoint = self.api_endpoints.get("user_by_screen_name")
@@ -365,15 +373,7 @@ class TwitterFetcher(BaseFetcher):
         """
         try:
             # 准备 API 请求头
-            headers = {
-                "authorization": self.selected_twitter_account.get('authToken', ''),
-                "x-csrf-token": self.selected_twitter_account.get('csrfToken', ''),
-                "cookie": self.selected_twitter_account.get('cookie', ''),
-                "user-agent": self.user_agent,
-                "content-type": "application/json",
-                "x-twitter-active-user": "yes",
-                "x-twitter-client-language": "zh-cn"
-            }
+            headers = self._get_headers()
             
             # 准备请求参数
             variables = {
@@ -550,15 +550,7 @@ class TwitterFetcher(BaseFetcher):
         self.logger.info(f"获取用户 {username} 的推文列表，cursor: {cursor}")
         try:
             # 准备 API 请求头
-            headers = {
-                "authorization": self.selected_twitter_account.get('authToken', ''),
-                "x-csrf-token": self.selected_twitter_account.get('csrfToken', ''),
-                "cookie": self.selected_twitter_account.get('cookie', ''),
-                "user-agent": self.user_agent,
-                "content-type": "application/json",
-                "x-twitter-active-user": "yes",
-                "x-twitter-client-language": "zh-cn"
-            }
+            headers = self._get_headers()
             
             # 准备请求参数
             variables = {
@@ -794,15 +786,7 @@ class TwitterFetcher(BaseFetcher):
         """
         try:
             # 准备 API 请求头
-            headers = {
-                "authorization": self.selected_twitter_account.get('authToken', ''),
-                "x-csrf-token": self.selected_twitter_account.get('csrfToken', ''),
-                "cookie": self.selected_twitter_account.get('cookie', ''),
-                "user-agent": self.user_agent,
-                "content-type": "application/json",
-                "x-twitter-active-user": "yes",
-                "x-twitter-client-language": "zh-cn"
-            }
+            headers = self._get_headers()
             
             # 准备请求参数
             variables = {
