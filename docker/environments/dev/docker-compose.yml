@@ -92,6 +92,27 @@ services:
       - "traefik.http.routers.demo.rule=Host(`${DEMO_HOST}`)"
       - "traefik.http.routers.demo.entrypoints=web"
 
+  admin-ui:
+    build:
+      context: ../../../admin-ui
+      dockerfile: Dockerfile
+      args:
+        API_BASE_URL: http://admin:8000
+        ADMIN_BASE_URL: http://traefik:80/admin
+    container_name: admin-ui
+    ports:
+      - "${ADMIN_UI_HTTP_PORT}:3000"  
+    environment:
+      - NODE_ENV=development
+    networks:
+      - fastkol_network
+    restart: unless-stopped
+    labels:
+      - com.host.description=label
+      - "traefik.enable=true"
+      - "traefik.http.routers.admin-ui.rule=Host(`${ADMIN_UI_HOST}`)"
+      - "traefik.http.routers.admin-ui.entrypoints=web"
+
 networks:
   fastkol_network:
     driver: bridge

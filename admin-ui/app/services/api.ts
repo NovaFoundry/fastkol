@@ -1,9 +1,7 @@
 import axios from 'axios';
 
 // 使用代理路径
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL === 'http://localhost:10081/admin' 
-  ? '/admin'  // 使用 /admin 代理
-  : '/api';   // 使用 /api 代理
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || '';
 
 export interface TwitterAccount {
   id: string;

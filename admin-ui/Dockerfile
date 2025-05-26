@@ -10,6 +10,15 @@ RUN npm ci
 
 COPY . .
 COPY .env* ./
+
+# 新增：声明构建参数
+ARG API_BASE_URL
+ARG API_GATEWAY_URL
+
+# 新增：将构建参数转为环境变量
+ENV API_BASE_URL=${API_BASE_URL}
+ENV API_GATEWAY_URL=${API_GATEWAY_URL}
+
 RUN mkdir -p public
 RUN npm run build
 

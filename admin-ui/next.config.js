@@ -7,12 +7,12 @@ const nextConfig = {
         // 代理到 http://localhost:18103
         {
           source: '/api/v1/:path*',
-          destination: 'http://localhost:18103/v1/:path*',
+          destination: `${process.env.API_BASE_URL}/v1/:path*`,
         },
         // 代理到 http://localhost:10081/admin
         {
-          source: '/admin/v1/:path*',
-          destination: 'http://localhost:10081/admin/v1/:path*',
+          source: '/api/admin/v1/:path*',
+          destination: `${process.env.API_GATEWAY_URL}/v1/:path*`,
         },
       ]
     }
