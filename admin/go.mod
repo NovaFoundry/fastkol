@@ -9,6 +9,7 @@ require (
 	github.com/go-kratos/kratos/v2 v2.8.4
 	github.com/golang-migrate/migrate/v4 v4.18.3
 	github.com/google/wire v0.6.0
+	github.com/gorilla/handlers v1.5.2
 	github.com/hashicorp/consul/api v1.32.1
 	github.com/nacos-group/nacos-sdk-go/v2 v2.2.5
 	github.com/redis/go-redis/v9 v9.5.1
@@ -51,7 +52,6 @@ require (
 	github.com/golang/mock v1.6.0 // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/google/uuid v1.6.0 // indirect
-	github.com/gorilla/handlers v1.5.2 // indirect
 	github.com/gorilla/mux v1.8.1 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
@@ -82,7 +82,6 @@ require (
 	github.com/prometheus/client_model v0.2.0 // indirect
 	github.com/prometheus/common v0.32.1 // indirect
 	github.com/prometheus/procfs v0.7.3 // indirect
-	github.com/rs/cors v1.11.1 // indirect
 	github.com/tjfoc/gmsm v1.4.1 // indirect
 	go.opentelemetry.io/otel v1.29.0 // indirect
 	go.opentelemetry.io/otel/metric v1.29.0 // indirect

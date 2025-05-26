@@ -31,6 +31,7 @@ func NewHTTPServer(c *conf.Server, greeter *service.GreeterService, twitterAccou
 	opts = append(opts, http.Filter(handlers.CORS(
 		handlers.AllowedOrigins(c.Http.CorsAllowedOrigins),
 		handlers.AllowedMethods([]string{"GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"}),
+		handlers.AllowedHeaders([]string{"Content-Type", "Authorization"}),
 	)))
 	srv := http.NewServer(opts...)
 	v1.RegisterGreeterHTTPServer(srv, greeter)
