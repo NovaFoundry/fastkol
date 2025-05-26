@@ -28,17 +28,22 @@ func NewTwitterAccountService(uc *biz.TwitterAccountUsecase, logger log.Logger) 
 
 // CreateTwitterAccount 创建一个Twitter账号
 func (s *TwitterAccountService) CreateTwitterAccount(ctx context.Context, req *v1.CreateTwitterAccountRequest) (*v1.CreateTwitterAccountReply, error) {
+	var headers biz.TwitterAccountHeaders
+	if req.Headers != nil {
+		headers = biz.TwitterAccountHeaders{
+			Authorization: req.Headers.Authorization,
+			XCsrfToken:    req.Headers.XCsrfToken,
+			Cookie:        req.Headers.Cookie,
+		}
+	}
+
 	account := &biz.TwitterAccount{
 		Username: req.Username,
 		Email:    req.Email,
 		Phone:    req.Phone,
 		Password: req.Password,
-		Headers: biz.TwitterAccountHeaders{
-			Authorization: req.Headers.Authorization,
-			XCsrfToken:    req.Headers.XCsrfToken,
-			Cookie:        req.Headers.Cookie,
-		},
-		Status: req.Status,
+		Headers:  headers,
+		Status:   req.Status,
 	}
 
 	result, err := s.uc.Create(ctx, account)
