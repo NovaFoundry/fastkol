@@ -171,8 +171,9 @@ message TwitterAccountInfo {
   string username = 2;
   string email = 3;
   string phone = 4;
-  Headers headers = 5;
-  string status = 6;
-  string created_at = 7;
-  string updated_at = 8;
+  string password = 5;
+  Headers headers = 6;
+  string status = 7;
+  string created_at = 8;
+  string updated_at = 9;
 } 

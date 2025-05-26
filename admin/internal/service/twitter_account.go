@@ -52,6 +52,7 @@ func (s *TwitterAccountService) CreateTwitterAccount(ctx context.Context, req *v
 			Username: result.Username,
 			Email:    result.Email,
 			Phone:    result.Phone,
+			Password: result.Password,
 			Headers: &v1.Headers{
 				Authorization: result.Headers.Authorization,
 				XCsrfToken:    result.Headers.XCsrfToken,
@@ -125,6 +126,7 @@ func (s *TwitterAccountService) GetTwitterAccount(ctx context.Context, req *v1.G
 			Username: account.Username,
 			Email:    account.Email,
 			Phone:    account.Phone,
+			Password: account.Password,
 			Headers: &v1.Headers{
 				Authorization: account.Headers.Authorization,
 				XCsrfToken:    account.Headers.XCsrfToken,
@@ -154,6 +156,7 @@ func (s *TwitterAccountService) ListTwitterAccounts(ctx context.Context, req *v1
 			Username: account.Username,
 			Email:    account.Email,
 			Phone:    account.Phone,
+			Password: account.Password,
 			Headers: &v1.Headers{
 				Authorization: account.Headers.Authorization,
 				XCsrfToken:    account.Headers.XCsrfToken,
@@ -185,6 +188,7 @@ func (s *TwitterAccountService) LockTwitterAccounts(ctx context.Context, req *v1
 			Username: account.Username,
 			Email:    account.Email,
 			Phone:    account.Phone,
+			Password: account.Password,
 			Headers: &v1.Headers{
 				Authorization: account.Headers.Authorization,
 				XCsrfToken:    account.Headers.XCsrfToken,
