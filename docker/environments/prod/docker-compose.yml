@@ -133,6 +133,28 @@ services:
       - consul
       - traefik
 
+  admin-ui:
+    image: hujia7812556/fastkol-admin-ui:latest
+    container_name: admin-ui
+    environment:
+      - NODE_ENV=production
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.admin-ui.rule=Host(`${ADMIN_UI_HOST}`)"
+      - "traefik.http.routers.admin-ui.entrypoints=web"
+      - "traefik.http.routers.admin-ui.entrypoints=websecure"
+      - "traefik.http.routers.admin-ui.tls.certresolver=cloudflare"
+      - "traefik.http.services.admin-ui.loadbalancer.server.port=3000"
+      - "traefik.http.routers.admin-ui.middlewares=admin-ui-auth"
+      - "traefik.http.middlewares.admin-ui-auth.basicauth.users=${ADMIN_UI_TRAEFIK_USER_PWD}"
+    networks:
+      - fastkol_network
+    restart: unless-stopped
+    depends_on:
+      - consul
+      - traefik
+      - admin
+
   fetcher-web:
     image: hujia7812556/fastkol-fetcher:latest
     container_name: fetcher-web

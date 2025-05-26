@@ -15,6 +15,7 @@ jobs:
         env:
           DOCKER_COMPOSE_ENV: ${{ secrets.DOCKER_COMPOSE_ENV }}
           DEMO_ENV: ${{ secrets.DEMO_ENV }}
+          ADMIN_UI_ENV: ${{ secrets.ADMIN_UI_ENV }}
           ADMIN_CONFIG: ${{ secrets.ADMIN_CONFIG }}
           FETCHER_CONFIG: ${{ secrets.FETCHER_CONFIG }}
         run: |
@@ -26,6 +27,11 @@ jobs:
           mkdir -p docker/environments/prod/demo
           cat > docker/environments/prod/demo/.env <<EOF
           $DEMO_ENV
+          EOF
+
+          mkdir -p docker/environments/prod/admin-ui
+          cat > docker/environments/prod/admin-ui/.env <<EOF
+          $ADMIN_UI_ENV
           EOF
 
           mkdir -p docker/environments/prod/admin
@@ -75,7 +81,7 @@ jobs:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
-          source: "docker/environments/prod/*,docker/environments/prod/.env,docker/environments/prod/demo/.env"
+          source: "docker/environments/prod/*,docker/environments/prod/.env,docker/environments/prod/demo/.env,docker/environments/prod/admin-ui/.env"
           target: "${{ secrets.DEPLOY_TARGET }}"
           strip_components: 3
 

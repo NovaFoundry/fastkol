@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Table, Button, Space, Modal, Form, Input, Select, message, Popconfirm, Collapse, App } from 'antd';
-import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
+import { PlusOutlined, EditOutlined, DeleteOutlined, EyeOutlined, EyeInvisibleOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import api, { TwitterAccount, CreateAccountRequest } from '../services/api';
 import { parseCurlCommand, parseFirefoxHeaders, parseFetchHeaders } from '../utils/parseHeaders';
@@ -20,11 +20,16 @@ export default function Home() {
   const [curlInput, setCurlInput] = useState('');
   const [firefoxHeadersInput, setFirefoxHeadersInput] = useState('');
   const [fetchInput, setFetchInput] = useState('');
+  const [allVisible, setAllVisible] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<string | undefined>(undefined);
+  const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
+  const [batchModalVisible, setBatchModalVisible] = useState(false);
+  const [batchStatus, setBatchStatus] = useState<string>('normal');
 
-  const fetchAccounts = async (page = 1, pageSize = 10) => {
+  const fetchAccounts = async (page = 1, pageSize = 10, status = statusFilter) => {
     try {
       setLoading(true);
-      const response = await api.listAccounts(pageSize, page);
+      const response = await api.listAccounts(pageSize, page, status && status !== 'all' ? status : undefined);
       setAccounts(response.accounts);
       setTotal(response.total);
     } catch (error) {
@@ -36,7 +41,7 @@ export default function Home() {
 
   useEffect(() => {
     fetchAccounts();
-  }, []);
+  }, [statusFilter]);
 
   const handleCreate = () => {
     setEditingAccount(null);
@@ -66,7 +71,16 @@ export default function Home() {
   const handleSubmit = async () => {
     try {
       const values = await form.validateFields();
-      const headers = values.headers ? JSON.parse(values.headers) : undefined;
+      let headers = values.headers ? JSON.parse(values.headers) : undefined;
+      if (headers) {
+        const lowerCaseHeaders: Record<string, string> = {};
+        for (const k in headers) {
+          if (Object.prototype.hasOwnProperty.call(headers, k)) {
+            lowerCaseHeaders[k.toLowerCase()] = headers[k];
+          }
+        }
+        headers = lowerCaseHeaders;
+      }
       const data: CreateAccountRequest = {
         ...values,
         headers,
@@ -129,6 +143,37 @@ export default function Home() {
     }
   };
 
+  const handleToggleAllPasswords = () => {
+    if (allVisible) {
+      setAllVisible(false);
+    } else {
+      setAllVisible(true);
+    }
+  };
+
+  const handleBatchStatusChange = async () => {
+    try {
+      await Promise.all(selectedRowKeys.map(id => {
+        const account = accounts.find(acc => acc.id === id);
+        if (!account) return Promise.resolve();
+        return api.updateAccount(id as string, {
+          username: account.username,
+          email: account.email,
+          phone: account.phone,
+          password: account.password,
+          headers: account.headers,
+          status: batchStatus,
+        });
+      }));
+      message.success('批量修改成功');
+      setBatchModalVisible(false);
+      setSelectedRowKeys([]);
+      fetchAccounts();
+    } catch (error) {
+      message.error('批量修改失败');
+    }
+  };
+
   const columns: ColumnsType<TwitterAccount> = [
     {
       title: '用户名',
@@ -146,17 +191,46 @@ export default function Home() {
       key: 'phone',
     },
     {
+      title: (
+        <span>
+          密码
+          <Button
+            type="link"
+            size="small"
+            icon={allVisible ? <EyeInvisibleOutlined /> : <EyeOutlined />}
+            onClick={handleToggleAllPasswords}
+            style={{ marginLeft: 4, padding: 0, height: 'auto', verticalAlign: 'middle' }}
+            tabIndex={-1}
+          />
+        </span>
+      ),
+      dataIndex: 'password',
+      key: 'password',
+      width: 160,
+      render: (password: string) => (
+        <span style={{ fontFamily: 'monospace', minWidth: 120, display: 'inline-block' }}>
+          {allVisible ? password : '*'.repeat(Math.max(password.length, 6))}
+        </span>
+      ),
+    },
+    {
       title: '状态',
       dataIndex: 'status',
       key: 'status',
-      render: (status: string) => {
-        const statusMap = {
+      render: (status: TwitterAccount['status']) => {
+        const statusMap: Record<TwitterAccount['status'], string> = {
           normal: '正常',
           login_expired: '登录已失效',
           disabled: '已禁用',
           deprecated: '已废弃',
         };
-        return statusMap[status as keyof typeof statusMap] || status;
+        const statusColor: Record<TwitterAccount['status'], string> = {
+          normal: '#52c41a',
+          login_expired: '#ff4d4f',
+          disabled: '#bfbfbf',
+          deprecated: '#faad14',
+        };
+        return <span style={{ color: statusColor[status] }}>{statusMap[status] || status}</span>;
       },
     },
     {
@@ -189,13 +263,31 @@ export default function Home() {
   return (
     <App>
       <div className="p-6">
-        <div className="mb-4">
+        <div className="mb-4" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
           <Button
             type="primary"
             icon={<PlusOutlined />}
             onClick={handleCreate}
           >
             新建账号
+          </Button>
+          <Select
+            value={statusFilter || 'all'}
+            style={{ width: 160 }}
+            onChange={value => setStatusFilter(value)}
+            options={[
+              { value: 'all', label: '全部' },
+              { value: 'normal', label: <><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', backgroundColor: '#52c41a', marginRight: 8, verticalAlign: 'middle' }}></span>正常</> },
+              { value: 'login_expired', label: <><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', backgroundColor: '#ff4d4f', marginRight: 8, verticalAlign: 'middle' }}></span>登录已失效</> },
+              { value: 'disabled', label: <><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', backgroundColor: '#bfbfbf', marginRight: 8, verticalAlign: 'middle' }}></span>已禁用</> },
+              { value: 'deprecated', label: <><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', backgroundColor: '#faad14', marginRight: 8, verticalAlign: 'middle' }}></span>已废弃</> },
+            ]}
+          />
+          <Button
+            disabled={selectedRowKeys.length === 0}
+            onClick={() => setBatchModalVisible(true)}
+          >
+            批量修改状态
           </Button>
         </div>
 
@@ -207,6 +299,10 @@ export default function Home() {
           pagination={{
             total,
             onChange: (page, pageSize) => fetchAccounts(page, pageSize),
+          }}
+          rowSelection={{
+            selectedRowKeys,
+            onChange: setSelectedRowKeys,
           }}
         />
 
@@ -380,6 +476,25 @@ export default function Home() {
               <Input.TextArea rows={6} />
             </Form.Item>
           </Form>
+        </Modal>
+
+        <Modal
+          title="批量修改状态"
+          open={batchModalVisible}
+          onOk={handleBatchStatusChange}
+          onCancel={() => setBatchModalVisible(false)}
+        >
+          <Select
+            value={batchStatus}
+            style={{ width: 200 }}
+            onChange={setBatchStatus}
+            options={[
+              { value: 'normal', label: <><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', backgroundColor: '#52c41a', marginRight: 8, verticalAlign: 'middle' }}></span>正常</> },
+              { value: 'login_expired', label: <><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', backgroundColor: '#ff4d4f', marginRight: 8, verticalAlign: 'middle' }}></span>登录已失效</> },
+              { value: 'disabled', label: <><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', backgroundColor: '#bfbfbf', marginRight: 8, verticalAlign: 'middle' }}></span>已禁用</> },
+              { value: 'deprecated', label: <><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', backgroundColor: '#faad14', marginRight: 8, verticalAlign: 'middle' }}></span>已废弃</> },
+            ]}
+          />
         </Modal>
       </div>
     </App>

@@ -6,14 +6,14 @@ export function parseCurlCommand(curlCommand: string): { headers: Record<string,
     const headerString = match[1] || match[2];
     const firstColonIndex = headerString.indexOf(':');
     if (firstColonIndex !== -1) {
-      const key = headerString.substring(0, firstColonIndex).trim();
+      const key = headerString.substring(0, firstColonIndex).trim().toLowerCase();
       const value = headerString.substring(firstColonIndex + 1).trim();
       if (key && value) {
         headers[key] = value;
       }
     }
   }
-  const hasCookie = Object.keys(headers).some(k => k.toLowerCase() === 'cookie');
+  const hasCookie = Object.keys(headers).some(k => k === 'cookie');
   return { headers, hasCookie };
 }
 
@@ -24,10 +24,10 @@ export function parseFirefoxHeaders(headersString: string): { headers: Record<st
     const [key, ...valueParts] = line.split(':');
     if (key && valueParts.length > 0) {
       const value = valueParts.join(':').trim();
-      headers[key.trim()] = value;
+      headers[key.trim().toLowerCase()] = value;
     }
   }
-  const hasCookie = Object.keys(headers).some(k => k.toLowerCase() === 'cookie');
+  const hasCookie = Object.keys(headers).some(k => k === 'cookie');
   return { headers, hasCookie };
 }
 
@@ -40,7 +40,12 @@ export function parseFetchHeaders(fetchString: string): { headers: Record<string
   if (!options.headers) {
     throw new Error('未找到 headers 对象');
   }
-  const headers = options.headers;
-  const hasCookie = Object.keys(headers).some(k => k.toLowerCase() === 'cookie');
+  const headers: Record<string, string> = {};
+  for (const k in options.headers) {
+    if (Object.prototype.hasOwnProperty.call(options.headers, k)) {
+      headers[k.toLowerCase()] = options.headers[k];
+    }
+  }
+  const hasCookie = Object.keys(headers).some(k => k === 'cookie');
   return { headers, hasCookie };
 } 
