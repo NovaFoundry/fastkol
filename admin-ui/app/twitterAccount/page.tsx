@@ -208,8 +208,16 @@ export default function Home() {
       key: 'password',
       width: 160,
       render: (password: string) => (
-        <span style={{ fontFamily: 'monospace', minWidth: 120, display: 'inline-block' }}>
-          {allVisible ? password : '*'.repeat(Math.max(password.length, 6))}
+        <span
+          style={{
+            fontFamily: 'monospace',
+            minWidth: 160,
+            width: 160,
+            display: 'inline-block',
+          }}
+          title={allVisible ? password : undefined}
+        >
+          {allVisible ? password : '*'.repeat(16)}
         </span>
       ),
     },
