@@ -946,7 +946,9 @@ class TwitterFetcher(BaseFetcher):
             response = await ServiceDiscovery.post(
                 service_name="admin",
                 path="/v1/twitter/accounts/lock",
-                json={}  # 如果需要请求体，可以在这里添加
+                json={
+                    "type": "similar"
+                }  # 如果需要请求体，可以在这里添加
             )
             
             # 检查响应是否成功
