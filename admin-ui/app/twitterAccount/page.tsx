@@ -176,6 +176,11 @@ export default function Home() {
 
   const columns: ColumnsType<TwitterAccount> = [
     {
+      title: 'ID',
+      dataIndex: 'id',
+      key: 'id'
+    },
+    {
       title: '用户名',
       dataIndex: 'username',
       key: 'username',
