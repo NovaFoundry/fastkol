@@ -18,6 +18,8 @@ const (
 	AccountStatusDisabled AccountStatus = "disabled"
 	// AccountStatusDeprecated 账号已废弃
 	AccountStatusDeprecated AccountStatus = "deprecated"
+	// AccountStatusSuspended 账号被暂停，可执行similar，无法执行search
+	AccountStatusSuspended AccountStatus = "suspended"
 )
 
 type TwitterAccountHeaders struct {
@@ -38,7 +40,7 @@ type TwitterAccount struct {
 	Phone    string                `gorm:"type:varchar(20);not null;default:'';index;comment:手机号码"`
 	Password string                `gorm:"type:varchar(255);not null;comment:密码"`
 	Headers  TwitterAccountHeaders `gorm:"type:jsonb;serializer:json;comment:HTTP请求头信息，包含authorization、x-csrf-token和cookie"`
-	Status   AccountStatus         `gorm:"type:varchar(20);not null;default:'normal';index;comment:账号状态：normal-正常，login_expired-登录已失效，disabled-已禁用，deprecated-已废弃"`
+	Status   AccountStatus         `gorm:"type:varchar(20);not null;default:'normal';index;comment:账号状态：normal-正常，login_expired-登录已失效，disabled-已禁用，deprecated-已废弃，suspended-已暂停"`
 }
 
 // TableName specifies the table name for TwitterAccount
