@@ -15,7 +15,7 @@ export interface TwitterAccount {
     cookie?: string;
     [key: string]: string | undefined;
   };
-  status: 'normal' | 'login_expired' | 'disabled' | 'deprecated';
+  status: 'normal' | 'login_expired' | 'disabled' | 'deprecated' | 'suspended';
 }
 
 export interface ListAccountsResponse {

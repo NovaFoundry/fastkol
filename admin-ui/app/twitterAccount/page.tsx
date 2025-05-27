@@ -26,6 +26,22 @@ export default function Home() {
   const [batchModalVisible, setBatchModalVisible] = useState(false);
   const [batchStatus, setBatchStatus] = useState<string>('normal');
 
+  const statusMap: Record<TwitterAccount['status'], string> = {
+    normal: '正常',
+    login_expired: '登录已失效',
+    disabled: '已禁用',
+    deprecated: '已废弃',
+    suspended: '已暂停 (可使用similar)',
+  };
+
+  const statusColor: Record<TwitterAccount['status'], string> = {
+    normal: '#52c41a',
+    login_expired: '#ff4d4f',
+    disabled: '#bfbfbf',
+    deprecated: '#faad14',
+    suspended: '#1890ff',
+  };
+
   const fetchAccounts = async (page = 1, pageSize = 10, status = statusFilter) => {
     try {
       setLoading(true);
@@ -231,18 +247,6 @@ export default function Home() {
       dataIndex: 'status',
       key: 'status',
       render: (status: TwitterAccount['status']) => {
-        const statusMap: Record<TwitterAccount['status'], string> = {
-          normal: '正常',
-          login_expired: '登录已失效',
-          disabled: '已禁用',
-          deprecated: '已废弃',
-        };
-        const statusColor: Record<TwitterAccount['status'], string> = {
-          normal: '#52c41a',
-          login_expired: '#ff4d4f',
-          disabled: '#bfbfbf',
-          deprecated: '#faad14',
-        };
         return <span style={{ color: statusColor[status] }}>{statusMap[status] || status}</span>;
       },
     },
@@ -294,6 +298,7 @@ export default function Home() {
               { value: 'login_expired', label: <><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', backgroundColor: '#ff4d4f', marginRight: 8, verticalAlign: 'middle' }}></span>登录已失效</> },
               { value: 'disabled', label: <><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', backgroundColor: '#bfbfbf', marginRight: 8, verticalAlign: 'middle' }}></span>已禁用</> },
               { value: 'deprecated', label: <><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', backgroundColor: '#faad14', marginRight: 8, verticalAlign: 'middle' }}></span>已废弃</> },
+              { value: 'suspended', label: <><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', backgroundColor: '#1890ff', marginRight: 8, verticalAlign: 'middle' }}></span>已暂停 (可使用similar)</> },
             ]}
           />
           <Button
@@ -376,10 +381,11 @@ export default function Home() {
               rules={[{ required: true, message: '请选择状态' }]}
             >
               <Select>
-                <Option value="normal">正常</Option>
-                <Option value="login_expired">登录已失效</Option>
-                <Option value="disabled">已禁用</Option>
-                <Option value="deprecated">已废弃</Option>
+                <Option value="normal"><span style={{ color: statusColor['normal'] }}>正常</span></Option>
+                <Option value="login_expired"><span style={{ color: statusColor['login_expired'] }}>登录已失效</span></Option>
+                <Option value="disabled"><span style={{ color: statusColor['disabled'] }}>已禁用</span></Option>
+                <Option value="deprecated"><span style={{ color: statusColor['deprecated'] }}>已废弃</span></Option>
+                <Option value="suspended"><span style={{ color: statusColor['suspended'] }}>已暂停 (可使用similar)</span></Option>
               </Select>
             </Form.Item>
 
@@ -502,10 +508,12 @@ export default function Home() {
             style={{ width: 200 }}
             onChange={setBatchStatus}
             options={[
+              { value: 'all', label: '全部' },
               { value: 'normal', label: <><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', backgroundColor: '#52c41a', marginRight: 8, verticalAlign: 'middle' }}></span>正常</> },
               { value: 'login_expired', label: <><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', backgroundColor: '#ff4d4f', marginRight: 8, verticalAlign: 'middle' }}></span>登录已失效</> },
               { value: 'disabled', label: <><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', backgroundColor: '#bfbfbf', marginRight: 8, verticalAlign: 'middle' }}></span>已禁用</> },
               { value: 'deprecated', label: <><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', backgroundColor: '#faad14', marginRight: 8, verticalAlign: 'middle' }}></span>已废弃</> },
+              { value: 'suspended', label: <><span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', backgroundColor: '#1890ff', marginRight: 8, verticalAlign: 'middle' }}></span>已暂停 (可使用similar)</> },
             ]}
           />
         </Modal>
