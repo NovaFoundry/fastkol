@@ -146,6 +146,7 @@ message ListTwitterAccountsReply {
 message LockTwitterAccountsRequest {
   int32 count = 1; // 需要获取的账号数量，默认1
   int32 lock_seconds = 2; // 锁定时间，单位秒，默认60秒
+  string type = 3; // 锁定类型：similar或search
 }
 
 // 获取并锁定Twitter账号响应

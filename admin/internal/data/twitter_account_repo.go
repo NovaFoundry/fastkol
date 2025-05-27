@@ -3,7 +3,7 @@ package data
 import (
 	"context"
 	"fmt"
-	"strconv"
+	"math/rand"
 	"time"
 
 	"Admin/internal/biz"
@@ -197,57 +197,84 @@ func (r *twitterAccountRepo) List(ctx context.Context, pageSize, pageNum int, st
 	return result, total, nil
 }
 
-// GetAndLockTwitterAccounts 获取并锁定多个可用的Twitter账号
-func (r *twitterAccountRepo) GetAndLockTwitterAccounts(ctx context.Context, count int, lockSeconds int) ([]*biz.TwitterAccount, error) {
-	// 使用 Redis Hash 存储已占用的账号ID和过期时间
-	occupiedKey := "twitter_accounts_occupied"
+// 获取未被占用的指定状态账号，并随机打乱顺序
+func (r *twitterAccountRepo) getAvailableAccountsByStatus(
+	ctx context.Context,
+	status AccountStatus,
+	occupiedMap map[string]string,
+) ([]*TwitterAccount, error) {
+	var accounts []*TwitterAccount
+	err := r.data.db.WithContext(ctx).
+		Where("status = ?", status).
+		Find(&accounts).Error
+	if err != nil {
+		return nil, err
+	}
+	var available []*TwitterAccount
+	for _, acc := range accounts {
+		if _, exists := occupiedMap[fmt.Sprintf("%d", acc.ID)]; !exists {
+			available = append(available, acc)
+		}
+	}
+	shuffleTwitterAccounts(available)
+	return available, nil
+}
 
-	// 获取已占用的账号ID列表
+func (r *twitterAccountRepo) GetAndLockTwitterAccounts(ctx context.Context, count int, lockSeconds int, accountType string) ([]*biz.TwitterAccount, error) {
+	occupiedKey := "twitter_accounts_occupied"
 	occupiedMap, err := r.data.redis.HGetAll(ctx, occupiedKey).Result()
 	if err != nil {
 		return nil, fmt.Errorf("获取已占用账号ID失败: %v", err)
 	}
 
-	// 查找所有状态为normal的账号
-	var accounts []*TwitterAccount
-	err = r.data.db.WithContext(ctx).
-		Where("status = ?", AccountStatusNormal).
-		Find(&accounts).Error
-	if err != nil {
-		return nil, err
-	}
+	var selectedAccounts []*TwitterAccount
 
-	// 筛选出未被占用的账号
-	availableAccounts := make([]*TwitterAccount, 0, count)
-	for _, account := range accounts {
-		if len(availableAccounts) >= count {
-			break
+	if accountType == "similar" {
+		availableSuspended, err := r.getAvailableAccountsByStatus(ctx, AccountStatusSuspended, occupiedMap)
+		if err != nil {
+			return nil, err
 		}
-		if _, exists := occupiedMap[fmt.Sprintf("%d", account.ID)]; !exists {
-			availableAccounts = append(availableAccounts, account)
+		need := count - len(availableSuspended)
+		var availableNormal []*TwitterAccount
+		if need > 0 {
+			availableNormal, err = r.getAvailableAccountsByStatus(ctx, AccountStatusNormal, occupiedMap)
+			if err != nil {
+				return nil, err
+			}
+			if need > len(availableNormal) {
+				need = len(availableNormal)
+			}
+			availableNormal = availableNormal[:need]
 		}
-	}
-
-	if len(availableAccounts) == 0 {
-		return nil, biz.ErrTwitterAccountNotFound
+		selectedAccounts = append(selectedAccounts, availableSuspended...)
+		selectedAccounts = append(selectedAccounts, availableNormal...)
+		if len(selectedAccounts) == 0 {
+			return nil, biz.ErrTwitterAccountNotFound
+		}
+		if len(selectedAccounts) > count {
+			selectedAccounts = selectedAccounts[:count]
+		}
+	} else if accountType == "search" {
+		availableNormal, err := r.getAvailableAccountsByStatus(ctx, AccountStatusNormal, occupiedMap)
+		if err != nil {
+			return nil, err
+		}
+		if len(availableNormal) == 0 {
+			return nil, biz.ErrTwitterAccountNotFound
+		}
+		if len(availableNormal) > count {
+			availableNormal = availableNormal[:count]
+		}
+		selectedAccounts = append(selectedAccounts, availableNormal...)
+	} else {
+		return nil, biz.ErrInvalidParameter
 	}
 
 	// 将选中的账号ID添加到Redis Hash中，并设置过期时间
-	pipe := r.data.redis.Pipeline()
 	now := time.Now().Unix()
-
-	// 找出最晚的过期时间
+	pipe := r.data.redis.Pipeline()
 	maxExpireTime := now + int64(lockSeconds)
-
-	// 检查已存在的过期时间
-	for _, expireTimeStr := range occupiedMap {
-		if expireTime, err := strconv.ParseInt(expireTimeStr, 10, 64); err == nil && expireTime > maxExpireTime {
-			maxExpireTime = expireTime
-		}
-	}
-
-	// 添加新的账号和过期时间
-	for _, account := range availableAccounts {
+	for _, account := range selectedAccounts {
 		expireTime := now + int64(lockSeconds)
 		pipe.HSet(ctx, occupiedKey, fmt.Sprintf("%d", account.ID), expireTime)
 		if expireTime > maxExpireTime {
@@ -264,8 +291,8 @@ func (r *twitterAccountRepo) GetAndLockTwitterAccounts(ctx context.Context, coun
 	}
 
 	// 转换为业务层模型
-	result := make([]*biz.TwitterAccount, 0, len(availableAccounts))
-	for _, account := range availableAccounts {
+	result := make([]*biz.TwitterAccount, 0, len(selectedAccounts))
+	for _, account := range selectedAccounts {
 		result = append(result, &biz.TwitterAccount{
 			ID:        account.ID,
 			CreatedAt: account.CreatedAt,
@@ -282,8 +309,17 @@ func (r *twitterAccountRepo) GetAndLockTwitterAccounts(ctx context.Context, coun
 			Status: string(account.Status),
 		})
 	}
-
 	return result, nil
+}
+
+// shuffleTwitterAccounts 随机打乱账号顺序
+func shuffleTwitterAccounts(accounts []*TwitterAccount) {
+	r := rand.New(rand.NewSource(time.Now().UnixNano()))
+	n := len(accounts)
+	for i := n - 1; i > 0; i-- {
+		j := r.Intn(i + 1)
+		accounts[i], accounts[j] = accounts[j], accounts[i]
+	}
 }
 
 // UnlockTwitterAccounts 解锁指定的Twitter账号

@@ -2,6 +2,7 @@ package biz
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	v1 "Admin/api/twitter/v1"
@@ -48,7 +49,7 @@ type TwitterAccountRepo interface {
 	GetByID(context.Context, uint) (*TwitterAccount, error)
 	GetByUsername(context.Context, string) (*TwitterAccount, error)
 	List(context.Context, int, int, string) ([]*TwitterAccount, int64, error)
-	GetAndLockTwitterAccounts(context.Context, int, int) ([]*TwitterAccount, error)
+	GetAndLockTwitterAccounts(context.Context, int, int, string) ([]*TwitterAccount, error)
 	UnlockTwitterAccounts(context.Context, []uint) error
 }
 
@@ -161,7 +162,7 @@ func (uc *TwitterAccountUsecase) List(ctx context.Context, pageSize, pageNum int
 }
 
 // GetAndLockTwitterAccounts 获取并锁定多个可用的Twitter账号
-func (uc *TwitterAccountUsecase) GetAndLockTwitterAccounts(ctx context.Context, count int, lockSeconds int) ([]*TwitterAccount, int, error) {
+func (uc *TwitterAccountUsecase) GetAndLockTwitterAccounts(ctx context.Context, count int, lockSeconds int, accountType string) ([]*TwitterAccount, int, error) {
 	// 设置默认值
 	if count <= 0 {
 		count = 1 // 默认获取1个账号
@@ -175,12 +176,20 @@ func (uc *TwitterAccountUsecase) GetAndLockTwitterAccounts(ctx context.Context, 
 	if lockSeconds > 600 {
 		lockSeconds = 600 // 最大锁定600秒
 	}
-	uc.log.WithContext(ctx).Infof("GetAndLockTwitterAccounts: count=%v, lockSeconds=%v", count, lockSeconds)
 
-	accounts, err := uc.repo.GetAndLockTwitterAccounts(ctx, count, lockSeconds)
+	accounts, err := uc.repo.GetAndLockTwitterAccounts(ctx, count, lockSeconds, accountType)
 	if err != nil {
 		return nil, 0, err
 	}
+
+	// 提取账号ID用于日志记录
+	accountIDs := make([]uint, 0, len(accounts))
+	for _, acc := range accounts {
+		accountIDs = append(accountIDs, acc.ID)
+	}
+	idsString := fmt.Sprintf("%v", accountIDs) // 将ID切片格式化为字符串
+
+	uc.log.WithContext(ctx).Infof("GetAndLockTwitterAccounts: count=%v, lockSeconds=%v, accountType=%v, ids=%s", count, lockSeconds, accountType, idsString)
 
 	return accounts, lockSeconds, nil
 }
