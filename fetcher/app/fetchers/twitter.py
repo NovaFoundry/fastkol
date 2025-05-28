@@ -1,4 +1,4 @@
-from typing import Tuple, List, Dict, Any
+from typing import Tuple, List, Dict, Any, Optional
 import logging
 import asyncio
 import re
@@ -30,6 +30,9 @@ class TwitterFetcher(BaseFetcher):
         # 初始化时获取Twitter认证信息
         self.twitter_accounts = []  # 所有Twitter账号
         self.selected_twitter_account = {}
+        # 新增search账号管理
+        self.search_accounts = []
+        self.search_account = {}
     
     def _load_config(self):
         """加载 Twitter API 配置"""
@@ -702,6 +705,20 @@ class TwitterFetcher(BaseFetcher):
             self.logger.error(traceback.format_exc())
             return []
 
+    # 获取可用的 search 账号，每个账号冷却时间60秒
+    async def _get_available_search_account(self, account_last_used: Dict[str, float]) -> Optional[Dict[str, Any]]:
+        """获取可用的 search 账号
+        
+        Args:
+            account_last_used (Dict[str, float]): 记录每个账号最后使用时间的字典
+            
+        Returns:
+            Optional[Dict[str, Any]]: 可用的账号，如果没有则返回 None
+        """
+        current_time = time.time()
+        available_accounts = [acc for acc in self.search_accounts if acc.get("id") not in account_last_used or current_time - account_last_used[acc.get("id")] >= 60]
+        return available_accounts[0] if available_accounts else None
+
     async def find_users_by_search(self, query: str, count: int = 20) -> Tuple[bool, str, List[Dict[str, Any]]]:
         """搜索用户
         
@@ -713,12 +730,18 @@ class TwitterFetcher(BaseFetcher):
             Tuple[bool, str, List[Dict[str, Any]]]: 成功状态，msg，用户列表
         """
         self.logger.info(f"搜索用户: {query}, 数量: {count}")
-        
-        if not await self.select_twitter_account():
-            self.logger.error("未选择Twitter账号，无法搜索用户")
-            return (False, "未选择Twitter账号", []) 
-        
         try:
+            # 获取 search 专用账号，默认取 10 个
+            ok = await self._get_twitter_acounts_from_admin_service(type_="search", count=10)
+            if not ok or not self.twitter_accounts:
+                self.logger.error("未获取到search账号")
+                return (False, "未获取到search账号", [])
+            self.search_accounts = self.twitter_accounts[:10]  # 最多取 10 个账号
+            if not self.search_accounts:
+                self.logger.error("未获取到search账号")
+                return (False, "未获取到search账号", [])
+            self.logger.info(f"获取到 {len(self.search_accounts)} 个search账号")
+
             # 存储所有获取的用户
             all_users = []
             # 用于去重的用户ID集合
@@ -728,10 +751,21 @@ class TwitterFetcher(BaseFetcher):
             no_new_data_count = 0
             # 上一次获取的用户数量
             last_user_count = 0
+            # 记录每个账号最后使用时间
+            account_last_used = {}
             
             self.logger.info(f"获取用户: {len(processed_uids)}/{count}")
             # 循环获取用户，直到达到请求的数量或没有更多用户
             while len(processed_uids) < count:
+                # 选择下一个可用的账号
+                self.search_account = await self._get_available_search_account(account_last_used)
+                if not self.search_account:
+                    # 如果没有可用账号，每 10 秒检测一次
+                    self.logger.info("所有账号都在冷却中，等待 10 秒...")
+                    await asyncio.sleep(10)
+                    continue
+                account_last_used[self.search_account.get("id")] = time.time()
+
                 # 使用新的方法获取用户
                 success, msg, users, cursor = await self._find_users_by_search(query, cursor)
                 if not success:
@@ -761,11 +795,10 @@ class TwitterFetcher(BaseFetcher):
                     break
                 
                 # 添加随机延迟，避免请求过于频繁
-                await self._random_delay(2, 5)
+                await self._random_delay(1, 3)
             
             # 确保返回数量不超过请求数量
             return (True, "success", all_users[:count])
-            
         except Exception as e:
             error_msg = f"搜索用户失败: {str(e)}"
             self.logger.error(error_msg)
@@ -773,26 +806,35 @@ class TwitterFetcher(BaseFetcher):
             self.logger.error(traceback.format_exc())
             return (False, error_msg, [])
 
-    async def _find_users_by_search(self, query: str, cursor: str = None) -> Tuple[bool, str, List[Dict[str, Any]], str]:
+    async def _find_users_by_search(self, query: str, cursor: str = None, search_account: dict = None) -> Tuple[bool, str, List[Dict[str, Any]], str]:
         """通过搜索获取一页用户
         
         Args:
             query (str): 搜索关键词
             count (int): 要获取的用户数量
             cursor (str, optional): 分页游标，用于获取更多用户
-            
+            search_account (dict, optional): search专用账号
+        
         Returns:
             Tuple[bool, str, List[Dict[str, Any]], str]: 成功状态, msg, 用户列表, 下一页游标
         """
         try:
             # 准备 API 请求头
+            if search_account is None:
+                search_account = self.search_account
+            if not search_account:
+                raise Exception("search_account 不能为空")
             headers = self._get_headers()
+            headers["x-client-transaction-id"] = search_account.get('headers', {}).get('x-client-transaction-id', '')
+            headers["authorization"] = search_account.get('headers', {}).get('authorization', '')
+            headers["x-csrf-token"] = search_account.get('headers', {}).get('x-csrf-token', '')
+            headers["cookie"] = search_account.get('headers', {}).get('cookie', '')
             
             # 准备请求参数
             variables = {
                 "rawQuery": query,
                 "count": 20,
-                "querySource": "typed_query",
+                "querySource": "recent_search_click" if query and query[0] == '#' else "typed_query",
                 "product": "Top"
             }
             
@@ -801,38 +843,9 @@ class TwitterFetcher(BaseFetcher):
                 variables["cursor"] = cursor
             
             features = {
-                "rweb_video_screen_enabled": False,
-                "profile_label_improvements_pcf_label_in_post_enabled": True,
-                "rweb_tipjar_consumption_enabled": True,
-                "responsive_web_graphql_exclude_directive_enabled": True,
-                "verified_phone_label_enabled": False,
-                "creator_subscriptions_tweet_preview_api_enabled": True,
-                "responsive_web_graphql_timeline_navigation_enabled": True,
-                "responsive_web_graphql_skip_user_profile_image_extensions_enabled": False,
-                "premium_content_api_read_enabled": False,
-                "communities_web_enable_tweet_community_results_fetch": True,
-                "c9s_tweet_anatomy_moderator_badge_enabled": True,
-                "responsive_web_grok_analyze_button_fetch_trends_enabled": False,
-                "responsive_web_grok_analyze_post_followups_enabled": True,
-                "responsive_web_jetfuel_frame": False,
-                "responsive_web_grok_share_attachment_enabled": True,
-                "articles_preview_enabled": True,
-                "responsive_web_edit_tweet_api_enabled": True,
-                "graphql_is_translatable_rweb_tweet_is_translatable_enabled": True,
-                "view_counts_everywhere_api_enabled": True,
-                "longform_notetweets_consumption_enabled": True,
-                "responsive_web_twitter_article_tweet_consumption_enabled": True,
-                "tweet_awards_web_tipping_enabled": False,
-                "responsive_web_grok_show_grok_translated_post": False,
-                "responsive_web_grok_analysis_button_from_backend": False,
-                "creator_subscriptions_quote_tweet_preview_enabled": False,
-                "freedom_of_speech_not_reach_fetch_enabled": True,
-                "standardized_nudges_misinfo": True,
-                "tweet_with_visibility_results_prefer_gql_limited_actions_policy_enabled": True,
-                "longform_notetweets_rich_text_read_enabled": True,
-                "longform_notetweets_inline_media_enabled": True,
-                "responsive_web_grok_image_annotation_enabled": True,
-                "responsive_web_enhance_cards_enabled": False
+                "rweb_video_screen_enabled": False,"profile_label_improvements_pcf_label_in_post_enabled":False,"rweb_tipjar_consumption_enabled":True,
+                "verified_phone_label_enabled":False,"creator_subscriptions_tweet_preview_api_enabled":True,"responsive_web_graphql_timeline_navigation_enabled":True,"responsive_web_graphql_skip_user_profile_image_extensions_enabled":False,"premium_content_api_read_enabled":False,"communities_web_enable_tweet_community_results_fetch":True,"c9s_tweet_anatomy_moderator_badge_enabled":True,"responsive_web_grok_analyze_button_fetch_trends_enabled":False,"responsive_web_grok_analyze_post_followups_enabled":True,"responsive_web_jetfuel_frame":False,"responsive_web_grok_share_attachment_enabled":True,"articles_preview_enabled":True,"responsive_web_edit_tweet_api_enabled":True,"graphql_is_translatable_rweb_tweet_is_translatable_enabled":True,"view_counts_everywhere_api_enabled":True,"longform_notetweets_consumption_enabled":True,"responsive_web_twitter_article_tweet_consumption_enabled":True,"tweet_awards_web_tipping_enabled":False,"responsive_web_grok_show_grok_translated_post":False,"responsive_web_grok_analysis_button_from_backend":True,"creator_subscriptions_quote_tweet_preview_enabled":False,"freedom_of_speech_not_reach_fetch_enabled":True,"standardized_nudges_misinfo":True,"tweet_with_visibility_results_prefer_gql_limited_actions_policy_enabled":True,
+                "longform_notetweets_rich_text_read_enabled":True,"longform_notetweets_inline_media_enabled":True,"responsive_web_grok_image_annotation_enabled":True,"responsive_web_enhance_cards_enabled":False
             }
             
             # 构建请求 URL
@@ -863,7 +876,8 @@ class TwitterFetcher(BaseFetcher):
                 async with session.get(url, **request_kwargs) as response:
                     if response.status != 200:
                         error_text = await response.text()
-                        self.logger.error(f"Twitter API 返回非 200 状态码: {response.status}, 内容: {error_text}")
+                        curl_command = self._generate_curl_command(url, headers)
+                        self.logger.error(f"Twitter API 返回非 200 状态码: {response.status}, 内容: {error_text}, curl: {curl_command}")
                         return (False, f"HTTP {response.status}", [], None)
                     # 校验 Content-Type
                     content_type = response.headers.get("Content-Type", "")
@@ -930,24 +944,28 @@ class TwitterFetcher(BaseFetcher):
             self.logger.error(traceback.format_exc())
             return (False, str(e), [], None)
 
-    async def _get_twitter_acounts_from_admin_service(self) -> bool:
+    async def _get_twitter_acounts_from_admin_service(self, type_: str = "similar", count: int = 1) -> bool:
         """通过服务发现获取admin的IP和端口，然后发送POST请求获取Twitter账号
         
+        Args:
+            type_ (str): 账号类型，默认为 'similar'，可为 'search'
+            count (int): 账号数量，默认为 1
         Returns:
-            Dict[str, str]: 包含authToken、csrfToken和cookie的字典
+            bool: 是否成功
         """
         if self.twitter_accounts:
             return True
 
         try:
-            self.logger.info("正在通过服务发现获取Twitter认证信息...")
+            self.logger.info(f"正在通过服务发现获取Twitter认证信息... type={type_}")
 
             # 使用ServiceDiscovery发送POST请求到admin
             response = await ServiceDiscovery.post(
                 service_name="admin",
                 path="/v1/twitter/accounts/lock",
                 json={
-                    "type": "similar"
+                    "count": count,
+                    "type": type_
                 }  # 如果需要请求体，可以在这里添加
             )
             
@@ -996,24 +1014,27 @@ class TwitterFetcher(BaseFetcher):
             return False
         
     async def _clear_twitter_accounts(self) -> bool:
-        if not self.twitter_accounts:
+        # 合并所有账号id，去重
+        all_accounts = (self.twitter_accounts or []) + (self.search_accounts or [])
+        ids = list({acc.get("id") for acc in all_accounts if acc and acc.get("id")})
+        if not ids:
             return True
         try:
-            ids = [account.get("id") for account in self.twitter_accounts]
-            # 使用ServiceDiscovery发送POST请求到admin
             response = await ServiceDiscovery.post(
                 service_name="admin",
                 path="/v1/twitter/accounts/unlock",
-                json={"ids": ids}  # 如果需要请求体，可以在这里添加
+                json={"ids": ids}
             )
             if response.get("success", False):
                 self.twitter_accounts = []
-                self.logger.info("成功清理Twitter账号")
+                self.selected_twitter_account = {}
+                self.search_accounts = []
+                self.search_account = {}
+                self.logger.info("成功清理所有Twitter账号")
                 return True
             else:
                 self.logger.error("清理Twitter账号失败")
                 return False
-        
         except Exception as e:
             self.logger.error(f"清理Twitter账号时发生错误: {str(e)}")
             import traceback
