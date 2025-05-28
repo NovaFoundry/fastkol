@@ -31,9 +31,10 @@ func (s *TwitterAccountService) CreateTwitterAccount(ctx context.Context, req *v
 	var headers biz.TwitterAccountHeaders
 	if req.Headers != nil {
 		headers = biz.TwitterAccountHeaders{
-			Authorization: req.Headers.Authorization,
-			XCsrfToken:    req.Headers.XCsrfToken,
-			Cookie:        req.Headers.Cookie,
+			Authorization:        req.Headers.Authorization,
+			XCsrfToken:           req.Headers.XCsrfToken,
+			Cookie:               req.Headers.Cookie,
+			XClientTransactionID: req.Headers.XClientTransactionId,
 		}
 	}
 
@@ -59,9 +60,10 @@ func (s *TwitterAccountService) CreateTwitterAccount(ctx context.Context, req *v
 			Phone:    result.Phone,
 			Password: result.Password,
 			Headers: &v1.Headers{
-				Authorization: result.Headers.Authorization,
-				XCsrfToken:    result.Headers.XCsrfToken,
-				Cookie:        result.Headers.Cookie,
+				Authorization:        result.Headers.Authorization,
+				XCsrfToken:           result.Headers.XCsrfToken,
+				Cookie:               result.Headers.Cookie,
+				XClientTransactionId: result.Headers.XClientTransactionID,
 			},
 			Status:    result.Status,
 			CreatedAt: result.CreatedAt.Format(time.RFC3339),
@@ -79,9 +81,10 @@ func (s *TwitterAccountService) UpdateTwitterAccount(ctx context.Context, req *v
 		Phone:    req.Phone,
 		Password: req.Password,
 		Headers: biz.TwitterAccountHeaders{
-			Authorization: req.Headers.Authorization,
-			XCsrfToken:    req.Headers.XCsrfToken,
-			Cookie:        req.Headers.Cookie,
+			Authorization:        req.Headers.Authorization,
+			XCsrfToken:           req.Headers.XCsrfToken,
+			Cookie:               req.Headers.Cookie,
+			XClientTransactionID: req.Headers.XClientTransactionId,
 		},
 		Status: req.Status,
 	}
@@ -97,9 +100,10 @@ func (s *TwitterAccountService) UpdateTwitterAccount(ctx context.Context, req *v
 		Email:    result.Email,
 		Phone:    result.Phone,
 		Headers: &v1.Headers{
-			Authorization: result.Headers.Authorization,
-			XCsrfToken:    result.Headers.XCsrfToken,
-			Cookie:        result.Headers.Cookie,
+			Authorization:        result.Headers.Authorization,
+			XCsrfToken:           result.Headers.XCsrfToken,
+			Cookie:               result.Headers.Cookie,
+			XClientTransactionId: result.Headers.XClientTransactionID,
 		},
 		Status:    result.Status,
 		UpdatedAt: result.UpdatedAt.Format(time.RFC3339),
@@ -133,9 +137,10 @@ func (s *TwitterAccountService) GetTwitterAccount(ctx context.Context, req *v1.G
 			Phone:    account.Phone,
 			Password: account.Password,
 			Headers: &v1.Headers{
-				Authorization: account.Headers.Authorization,
-				XCsrfToken:    account.Headers.XCsrfToken,
-				Cookie:        account.Headers.Cookie,
+				Authorization:        account.Headers.Authorization,
+				XCsrfToken:           account.Headers.XCsrfToken,
+				Cookie:               account.Headers.Cookie,
+				XClientTransactionId: account.Headers.XClientTransactionID,
 			},
 			Status:    account.Status,
 			CreatedAt: account.CreatedAt.Format(time.RFC3339),
@@ -163,9 +168,10 @@ func (s *TwitterAccountService) ListTwitterAccounts(ctx context.Context, req *v1
 			Phone:    account.Phone,
 			Password: account.Password,
 			Headers: &v1.Headers{
-				Authorization: account.Headers.Authorization,
-				XCsrfToken:    account.Headers.XCsrfToken,
-				Cookie:        account.Headers.Cookie,
+				Authorization:        account.Headers.Authorization,
+				XCsrfToken:           account.Headers.XCsrfToken,
+				Cookie:               account.Headers.Cookie,
+				XClientTransactionId: account.Headers.XClientTransactionID,
 			},
 			Status:    account.Status,
 			CreatedAt: account.CreatedAt.Format(time.RFC3339),
@@ -195,9 +201,10 @@ func (s *TwitterAccountService) LockTwitterAccounts(ctx context.Context, req *v1
 			Phone:    account.Phone,
 			Password: account.Password,
 			Headers: &v1.Headers{
-				Authorization: account.Headers.Authorization,
-				XCsrfToken:    account.Headers.XCsrfToken,
-				Cookie:        account.Headers.Cookie,
+				Authorization:        account.Headers.Authorization,
+				XCsrfToken:           account.Headers.XCsrfToken,
+				Cookie:               account.Headers.Cookie,
+				XClientTransactionId: account.Headers.XClientTransactionID,
 			},
 			Status:    account.Status,
 			CreatedAt: account.CreatedAt.Format(time.RFC3339),

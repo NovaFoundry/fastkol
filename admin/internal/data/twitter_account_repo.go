@@ -34,9 +34,10 @@ func (r *twitterAccountRepo) Create(ctx context.Context, ta *biz.TwitterAccount)
 		Phone:    ta.Phone,
 		Password: ta.Password,
 		Headers: TwitterAccountHeaders{
-			Authorization: ta.Headers.Authorization,
-			XCsrfToken:    ta.Headers.XCsrfToken,
-			Cookie:        ta.Headers.Cookie,
+			Authorization:        ta.Headers.Authorization,
+			XCsrfToken:           ta.Headers.XCsrfToken,
+			Cookie:               ta.Headers.Cookie,
+			XClientTransactionID: ta.Headers.XClientTransactionID,
 		},
 		Status: AccountStatus(ta.Status),
 	}
@@ -55,9 +56,10 @@ func (r *twitterAccountRepo) Create(ctx context.Context, ta *biz.TwitterAccount)
 		Phone:     account.Phone,
 		Password:  account.Password,
 		Headers: biz.TwitterAccountHeaders{
-			Authorization: account.Headers.Authorization,
-			XCsrfToken:    account.Headers.XCsrfToken,
-			Cookie:        account.Headers.Cookie,
+			Authorization:        account.Headers.Authorization,
+			XCsrfToken:           account.Headers.XCsrfToken,
+			Cookie:               account.Headers.Cookie,
+			XClientTransactionID: account.Headers.XClientTransactionID,
 		},
 		Status: string(account.Status),
 	}, nil
@@ -72,9 +74,10 @@ func (r *twitterAccountRepo) Update(ctx context.Context, ta *biz.TwitterAccount)
 		Phone:    ta.Phone,
 		Password: ta.Password,
 		Headers: TwitterAccountHeaders{
-			Authorization: ta.Headers.Authorization,
-			XCsrfToken:    ta.Headers.XCsrfToken,
-			Cookie:        ta.Headers.Cookie,
+			Authorization:        ta.Headers.Authorization,
+			XCsrfToken:           ta.Headers.XCsrfToken,
+			Cookie:               ta.Headers.Cookie,
+			XClientTransactionID: ta.Headers.XClientTransactionID,
 		},
 		Status: AccountStatus(ta.Status),
 	}
@@ -103,9 +106,10 @@ func (r *twitterAccountRepo) Update(ctx context.Context, ta *biz.TwitterAccount)
 		Phone:     updatedAccount.Phone,
 		Password:  updatedAccount.Password,
 		Headers: biz.TwitterAccountHeaders{
-			Authorization: updatedAccount.Headers.Authorization,
-			XCsrfToken:    updatedAccount.Headers.XCsrfToken,
-			Cookie:        updatedAccount.Headers.Cookie,
+			Authorization:        updatedAccount.Headers.Authorization,
+			XCsrfToken:           updatedAccount.Headers.XCsrfToken,
+			Cookie:               updatedAccount.Headers.Cookie,
+			XClientTransactionID: updatedAccount.Headers.XClientTransactionID,
 		},
 		Status: string(updatedAccount.Status),
 	}, nil
@@ -144,9 +148,10 @@ func (r *twitterAccountRepo) GetByID(ctx context.Context, id uint) (*biz.Twitter
 		Phone:     account.Phone,
 		Password:  account.Password,
 		Headers: biz.TwitterAccountHeaders{
-			Authorization: account.Headers.Authorization,
-			XCsrfToken:    account.Headers.XCsrfToken,
-			Cookie:        account.Headers.Cookie,
+			Authorization:        account.Headers.Authorization,
+			XCsrfToken:           account.Headers.XCsrfToken,
+			Cookie:               account.Headers.Cookie,
+			XClientTransactionID: account.Headers.XClientTransactionID,
 		},
 		Status: string(account.Status),
 	}, nil
@@ -187,9 +192,10 @@ func (r *twitterAccountRepo) List(ctx context.Context, pageSize, pageNum int, st
 			Phone:     account.Phone,
 			Password:  account.Password,
 			Headers: biz.TwitterAccountHeaders{
-				Authorization: account.Headers.Authorization,
-				XCsrfToken:    account.Headers.XCsrfToken,
-				Cookie:        account.Headers.Cookie,
+				Authorization:        account.Headers.Authorization,
+				XCsrfToken:           account.Headers.XCsrfToken,
+				Cookie:               account.Headers.Cookie,
+				XClientTransactionID: account.Headers.XClientTransactionID,
 			},
 			Status: string(account.Status),
 		})
@@ -329,9 +335,10 @@ func (r *twitterAccountRepo) GetAndLockTwitterAccounts(ctx context.Context, coun
 			Phone:     account.Phone,
 			Password:  account.Password,
 			Headers: biz.TwitterAccountHeaders{
-				Authorization: account.Headers.Authorization,
-				XCsrfToken:    account.Headers.XCsrfToken,
-				Cookie:        account.Headers.Cookie,
+				Authorization:        account.Headers.Authorization,
+				XCsrfToken:           account.Headers.XCsrfToken,
+				Cookie:               account.Headers.Cookie,
+				XClientTransactionID: account.Headers.XClientTransactionID,
 			},
 			Status: string(account.Status),
 		})
@@ -399,9 +406,10 @@ func (r *twitterAccountRepo) GetByUsername(ctx context.Context, username string)
 		Phone:     account.Phone,
 		Password:  account.Password,
 		Headers: biz.TwitterAccountHeaders{
-			Authorization: account.Headers.Authorization,
-			XCsrfToken:    account.Headers.XCsrfToken,
-			Cookie:        account.Headers.Cookie,
+			Authorization:        account.Headers.Authorization,
+			XCsrfToken:           account.Headers.XCsrfToken,
+			Cookie:               account.Headers.Cookie,
+			XClientTransactionID: account.Headers.XClientTransactionID,
 		},
 		Status: string(account.Status),
 	}, nil

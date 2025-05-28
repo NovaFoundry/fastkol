@@ -1,0 +1,1 @@
+COMMENT ON COLUMN twitter_accounts.headers IS 'HTTP请求头信息，包含authorization、x-csrf-token、cookie和x-client-transaction-id';

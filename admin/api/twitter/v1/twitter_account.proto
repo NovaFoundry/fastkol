@@ -70,6 +70,7 @@ message Headers {
   string authorization = 1 [json_name = "authorization"];
   string x_csrf_token = 2 [json_name = "x-csrf-token"];
   string cookie = 3 [json_name = "cookie"];
+  string x_client_transaction_id = 4 [json_name = "x-client-transaction-id"];
 }
 
 // 创建Twitter账号请求

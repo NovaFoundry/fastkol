@@ -22,9 +22,10 @@ var (
 
 // TwitterAccountHeaders 是Twitter账号的HTTP请求头信息
 type TwitterAccountHeaders struct {
-	Authorization string `json:"authorization"`
-	XCsrfToken    string `json:"x-csrf-token"`
-	Cookie        string `json:"cookie"`
+	Authorization        string `json:"authorization"`
+	XCsrfToken           string `json:"x-csrf-token"`
+	Cookie               string `json:"cookie"`
+	XClientTransactionID string `json:"x-client-transaction-id"`
 }
 
 // TwitterAccount 是Twitter账号模型
@@ -124,6 +125,9 @@ func (uc *TwitterAccountUsecase) Update(ctx context.Context, ta *TwitterAccount)
 	}
 	if ta.Headers.Cookie != "" {
 		existingAccount.Headers.Cookie = ta.Headers.Cookie
+	}
+	if ta.Headers.XClientTransactionID != "" {
+		existingAccount.Headers.XClientTransactionID = ta.Headers.XClientTransactionID
 	}
 	if ta.Status != "" {
 		existingAccount.Status = ta.Status

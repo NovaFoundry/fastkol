@@ -23,9 +23,10 @@ const (
 )
 
 type TwitterAccountHeaders struct {
-	Authorization string `json:"authorization" gorm:"column:authorization;comment:Twitter授权token"`
-	XCsrfToken    string `json:"x-csrf-token" gorm:"column:x-csrf-token;comment:Twitter CSRF token"`
-	Cookie        string `json:"cookie" gorm:"column:cookie;comment:Twitter会话cookie"`
+	Authorization        string `json:"authorization" gorm:"column:authorization;comment:Twitter授权token"`
+	XCsrfToken           string `json:"x-csrf-token" gorm:"column:x-csrf-token;comment:Twitter CSRF token"`
+	Cookie               string `json:"cookie" gorm:"column:cookie;comment:Twitter会话cookie"`
+	XClientTransactionID string `json:"x-client-transaction-id" gorm:"column:x-client-transaction-id;comment:Twitter客户端事务ID"`
 }
 
 // TwitterAccount represents a Twitter account in the database
@@ -39,7 +40,7 @@ type TwitterAccount struct {
 	Email    string                `gorm:"type:varchar(255);not null;default:'';index;comment:邮箱地址"`
 	Phone    string                `gorm:"type:varchar(20);not null;default:'';index;comment:手机号码"`
 	Password string                `gorm:"type:varchar(255);not null;comment:密码"`
-	Headers  TwitterAccountHeaders `gorm:"type:jsonb;serializer:json;comment:HTTP请求头信息，包含authorization、x-csrf-token和cookie"`
+	Headers  TwitterAccountHeaders `gorm:"type:jsonb;serializer:json;comment:HTTP请求头信息，包含authorization、x-csrf-token、cookie和x-client-transaction-id"`
 	Status   AccountStatus         `gorm:"type:varchar(20);not null;default:'normal';index;comment:账号状态：normal-正常，login_expired-登录已失效，disabled-已禁用，deprecated-已废弃，suspended-已暂停"`
 }
 
