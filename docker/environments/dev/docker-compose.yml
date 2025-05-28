@@ -96,6 +96,9 @@ services:
     build:
       context: ../../../admin-ui
       dockerfile: Dockerfile
+      args:
+        HTTP_PROXY: "http://host.docker.internal:1080"
+        HTTPS_PROXY: "http://host.docker.internal:1080"
     container_name: admin-ui
     ports:
       - "${ADMIN_UI_HTTP_PORT}:3000"  

@@ -3,6 +3,11 @@ FROM node:22.15.0-alpine3.21 AS builder
 
 WORKDIR /app
 
+ARG HTTP_PROXY
+ARG HTTPS_PROXY
+ENV HTTP_PROXY=${HTTP_PROXY}
+ENV HTTPS_PROXY=${HTTPS_PROXY}
+
 COPY package.json package-lock.json ./
 # 安装构建原生依赖所需工具
 RUN apk add --no-cache python3 make g++
