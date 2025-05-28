@@ -158,6 +158,7 @@ message LockTwitterAccountsReply {
 // 解锁Twitter账号请求
 message UnlockTwitterAccountsRequest {
   repeated int64 ids = 1; // 要解锁的账号ID列表
+  int32 delay = 2; // 延迟释放时间，单位秒，不设置或0表示立即释放
 }
 
 // 解锁Twitter账号响应

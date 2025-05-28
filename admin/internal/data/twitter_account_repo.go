@@ -350,7 +350,7 @@ func shuffleTwitterAccounts(accounts []*TwitterAccount) {
 }
 
 // UnlockTwitterAccounts 解锁指定的Twitter账号
-func (r *twitterAccountRepo) UnlockTwitterAccounts(ctx context.Context, ids []uint) error {
+func (r *twitterAccountRepo) UnlockTwitterAccounts(ctx context.Context, ids []uint, delay int) error {
 	if len(ids) == 0 {
 		return nil
 	}
@@ -361,9 +361,18 @@ func (r *twitterAccountRepo) UnlockTwitterAccounts(ctx context.Context, ids []ui
 	// 构建管道
 	pipe := r.data.redis.Pipeline()
 
-	// 从Hash中删除指定的账号ID
+	now := time.Now().Unix()
 	for _, id := range ids {
-		pipe.HDel(ctx, occupiedKey, fmt.Sprintf("%d", id))
+		accID := fmt.Sprintf("%d", id)
+		r.log.Infof("delay: %d", delay)
+		if delay > 0 {
+			// 如果设置了延迟，更新过期时间为当前时间+延迟时间
+			expireTime := now + int64(delay)
+			pipe.HSet(ctx, occupiedKey, accID, expireTime)
+		} else {
+			// 如果没有延迟，直接删除记录
+			pipe.HDel(ctx, occupiedKey, accID)
+		}
 	}
 
 	// 执行管道命令

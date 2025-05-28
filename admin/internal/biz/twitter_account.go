@@ -50,7 +50,7 @@ type TwitterAccountRepo interface {
 	GetByUsername(context.Context, string) (*TwitterAccount, error)
 	List(context.Context, int, int, string) ([]*TwitterAccount, int64, error)
 	GetAndLockTwitterAccounts(context.Context, int, int, string) ([]*TwitterAccount, error)
-	UnlockTwitterAccounts(context.Context, []uint) error
+	UnlockTwitterAccounts(context.Context, []uint, int) error
 }
 
 // TwitterAccountUsecase 是Twitter账号用例
@@ -177,6 +177,10 @@ func (uc *TwitterAccountUsecase) GetAndLockTwitterAccounts(ctx context.Context, 
 		lockSeconds = 600 // 最大锁定600秒
 	}
 
+	if accountType == "" {
+		accountType = "similar"
+	}
+
 	accounts, err := uc.repo.GetAndLockTwitterAccounts(ctx, count, lockSeconds, accountType)
 	if err != nil {
 		return nil, 0, err
@@ -195,7 +199,12 @@ func (uc *TwitterAccountUsecase) GetAndLockTwitterAccounts(ctx context.Context, 
 }
 
 // UnlockTwitterAccounts 解锁指定的Twitter账号
-func (uc *TwitterAccountUsecase) UnlockTwitterAccounts(ctx context.Context, ids []uint) error {
-	uc.log.WithContext(ctx).Infof("UnlockTwitterAccounts: ids=%v", ids)
-	return uc.repo.UnlockTwitterAccounts(ctx, ids)
+func (uc *TwitterAccountUsecase) UnlockTwitterAccounts(ctx context.Context, ids []uint, delay int) error {
+	// 处理可选的delay参数
+	if delay < 0 {
+		delay = 0
+	}
+
+	uc.log.WithContext(ctx).Infof("UnlockTwitterAccounts: ids=%v, delay=%v", ids, delay)
+	return uc.repo.UnlockTwitterAccounts(ctx, ids, delay)
 }

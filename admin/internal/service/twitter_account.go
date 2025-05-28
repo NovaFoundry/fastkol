@@ -215,7 +215,7 @@ func (s *TwitterAccountService) UnlockTwitterAccounts(ctx context.Context, req *
 		ids[i] = uint(id)
 	}
 
-	err := s.uc.UnlockTwitterAccounts(ctx, ids)
+	err := s.uc.UnlockTwitterAccounts(ctx, ids, int(req.Delay))
 	if err != nil {
 		return nil, err
 	}
