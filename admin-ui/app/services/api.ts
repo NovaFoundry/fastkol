@@ -12,6 +12,7 @@ export interface TwitterAccount {
   headers?: {
     authorization?: string;
     'x-csrf-token'?: string;
+    'x-client-transaction-id'?: string;
     cookie?: string;
     [key: string]: string | undefined;
   };
@@ -31,6 +32,7 @@ export interface CreateAccountRequest {
   headers?: {
     authorization?: string;
     'x-csrf-token'?: string;
+    'x-client-transaction-id'?: string;
     cookie?: string;
     [key: string]: string | undefined;
   };

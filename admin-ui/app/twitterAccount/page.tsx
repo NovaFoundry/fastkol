@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Table, Button, Space, Modal, Form, Input, Select, message, Popconfirm, Collapse, App } from 'antd';
+import { Table, Button, Space, Modal, Form, Input, Select, message, Popconfirm, Collapse, App, Alert } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined, EyeOutlined, EyeInvisibleOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
 import api, { TwitterAccount, CreateAccountRequest } from '../services/api';
@@ -388,6 +388,14 @@ export default function Home() {
                 <Option value="suspended"><span style={{ color: statusColor['suspended'] }}>已暂停 (可使用similar)</span></Option>
               </Select>
             </Form.Item>
+
+            <Alert
+              message="💡 提示"
+              description="建议从 SearchTimeline 接口复制 headers，得到的 x-client-transaction-id 可以执行 search"
+              type="info"
+              showIcon
+              className="mb-4"
+            />
 
             <Collapse 
               className="mb-4"
