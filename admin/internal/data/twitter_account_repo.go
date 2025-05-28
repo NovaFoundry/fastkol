@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math/rand"
+	"strconv"
 	"time"
 
 	"Admin/internal/biz"
@@ -210,12 +211,38 @@ func (r *twitterAccountRepo) getAvailableAccountsByStatus(
 	if err != nil {
 		return nil, err
 	}
+
 	var available []*TwitterAccount
+	now := time.Now().Unix()
+	occupiedKey := "twitter_accounts_occupied"
+	pipe := r.data.redis.Pipeline()
+
 	for _, acc := range accounts {
-		if _, exists := occupiedMap[fmt.Sprintf("%d", acc.ID)]; !exists {
+		accID := fmt.Sprintf("%d", acc.ID)
+		expireTimeStr, exists := occupiedMap[accID]
+		if !exists {
 			available = append(available, acc)
+			continue
+		}
+
+		expireTime, err := strconv.ParseInt(expireTimeStr, 10, 64)
+		if err != nil {
+			r.log.Warnf("解析过期时间失败: account_id=%d, expire_time=%s, error=%v", acc.ID, expireTimeStr, err)
+			continue
+		}
+
+		if now > expireTime {
+			available = append(available, acc)
+			// 清理过期的记录
+			pipe.HDel(ctx, occupiedKey, accID)
 		}
 	}
+
+	// 执行清理过期记录的操作
+	if _, err := pipe.Exec(ctx); err != nil {
+		r.log.Warnf("清理过期记录失败: %v", err)
+	}
+
 	shuffleTwitterAccounts(available)
 	return available, nil
 }
