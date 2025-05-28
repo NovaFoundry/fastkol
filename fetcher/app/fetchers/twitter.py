@@ -1014,12 +1014,10 @@ class TwitterFetcher(BaseFetcher):
             return False
         
     async def _clear_twitter_accounts(self) -> bool:
-        # 合并所有账号id，去重
-        all_accounts = (self.twitter_accounts or []) + (self.search_accounts or [])
-        ids = list({acc.get("id") for acc in all_accounts if acc and acc.get("id")})
-        if not ids:
-            return True
-        try:
+        cleared = True
+        # 清理主账号
+        if self.twitter_accounts:
+            ids = [account.get("id") for account in self.twitter_accounts]
             response = await ServiceDiscovery.post(
                 service_name="admin",
                 path="/v1/twitter/accounts/unlock",
@@ -1027,19 +1025,26 @@ class TwitterFetcher(BaseFetcher):
             )
             if response.get("success", False):
                 self.twitter_accounts = []
-                self.selected_twitter_account = {}
-                self.search_accounts = []
-                self.search_account = {}
-                self.logger.info("成功清理所有Twitter账号")
-                return True
+                self.logger.info("成功清理Twitter账号")
             else:
                 self.logger.error("清理Twitter账号失败")
-                return False
-        except Exception as e:
-            self.logger.error(f"清理Twitter账号时发生错误: {str(e)}")
-            import traceback
-            self.logger.error(traceback.format_exc())
-            return False
+                cleared = False
+        # 清理search账号
+        if self.search_accounts:
+            ids = [account.get("id") for account in self.search_accounts]
+            response = await ServiceDiscovery.post(
+                service_name="admin",
+                path="/v1/twitter/accounts/unlock",
+                json={"ids": ids, "delay": 60}  # 新增 delay 参数
+            )
+            if response.get("success", False):
+                self.search_accounts = []
+                self.search_account = None
+                self.logger.info("成功清理Search Twitter账号")
+            else:
+                self.logger.error("清理Search Twitter账号失败")
+                cleared = False
+        return cleared
             
     async def cleanup(self):
         await super().cleanup()
