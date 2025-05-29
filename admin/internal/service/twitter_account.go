@@ -151,7 +151,7 @@ func (s *TwitterAccountService) GetTwitterAccount(ctx context.Context, req *v1.G
 
 // ListTwitterAccounts 列出所有Twitter账号
 func (s *TwitterAccountService) ListTwitterAccounts(ctx context.Context, req *v1.ListTwitterAccountsRequest) (*v1.ListTwitterAccountsReply, error) {
-	accounts, total, err := s.uc.List(ctx, int(req.PageSize), int(req.PageNum), req.Status, req.Id, req.Username, req.Email)
+	accounts, total, err := s.uc.List(ctx, int(req.PageSize), int(req.PageNum), req.Status, req.Id, req.Username, req.Email, req.SortField, req.SortOrder)
 	if err != nil {
 		return nil, err
 	}

@@ -138,6 +138,8 @@ message ListTwitterAccountsRequest {
   int64 id = 4; // 按ID搜索
   string username = 5; // 按用户名搜索
   string email = 6; // 按邮箱搜索
+  string sort_field = 7; // 排序字段，支持id，默认id
+  string sort_order = 8; // 排序方向，支持asc、desc，默认asc
 }
 
 // 列出所有Twitter账号响应

@@ -158,7 +158,7 @@ func (r *twitterAccountRepo) GetByID(ctx context.Context, id uint) (*biz.Twitter
 }
 
 // List 列出所有Twitter账号
-func (r *twitterAccountRepo) List(ctx context.Context, pageSize, pageNum int, status string, id int64, username, email string) ([]*biz.TwitterAccount, int64, error) {
+func (r *twitterAccountRepo) List(ctx context.Context, pageSize, pageNum int, status string, id int64, username, email string, sortField, sortOrder string) ([]*biz.TwitterAccount, int64, error) {
 	var accounts []*TwitterAccount
 	var total int64
 
@@ -187,6 +187,29 @@ func (r *twitterAccountRepo) List(ctx context.Context, pageSize, pageNum int, st
 	// 获取总数
 	if err := query.Count(&total).Error; err != nil {
 		return nil, 0, err
+	}
+
+	// 处理排序
+	if sortField == "" {
+		sortField = "id" // 默认按id排序
+	}
+	if sortOrder == "" {
+		sortOrder = "asc" // 默认升序
+	}
+
+	// 验证排序字段
+	validFields := map[string]string{
+		"id": "id",
+	}
+	if field, ok := validFields[sortField]; ok {
+		// 验证排序方向
+		if sortOrder != "asc" && sortOrder != "desc" {
+			sortOrder = "asc"
+		}
+		query = query.Order(field + " " + sortOrder)
+	} else {
+		// 如果排序字段无效，使用默认排序
+		query = query.Order("id asc")
 	}
 
 	// 分页查询
