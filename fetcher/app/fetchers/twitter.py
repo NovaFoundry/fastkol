@@ -914,19 +914,20 @@ class TwitterFetcher(BaseFetcher):
                             
                             # 从简介中提取邮箱
                             email_in_bio = await self._extract_email_from_text(bio)
+                            username = user_result.get('core', {}).get('screen_name', '')
                             
                             user_data = {
                                 "uid": user_result.get("rest_id", ""),
-                                "username": legacy.get('screen_name', ''),
-                                "nickname": legacy.get('name', ''),
-                                "is_verified": legacy.get('verified', False),
+                                "username": username,
+                                "nickname": user_result.get('core', {}).get('name', ''),
+                                "is_verified": user_result.get('is_blue_verified', False),
                                 "followers_count": legacy.get('followers_count', 0),
                                 "following_count": legacy.get('friends_count', 0),
                                 "tweet_count": legacy.get('statuses_count', 0),
                                 "bio": bio,
                                 "email_in_bio": email_in_bio,
-                                "location": legacy.get('location', ''),
-                                "url": f"https://x.com/{legacy.get('screen_name', '')}"
+                                "location": user_result.get('location', '').get('location', ''),
+                                "url": f"https://x.com/{username}"
                             }
                             users.append(user_data)
 
