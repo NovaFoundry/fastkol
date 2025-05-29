@@ -25,6 +25,7 @@ export default function Home() {
   const [selectedRowKeys, setSelectedRowKeys] = useState<React.Key[]>([]);
   const [batchModalVisible, setBatchModalVisible] = useState(false);
   const [batchStatus, setBatchStatus] = useState<string>('normal');
+  const [searchKeyword, setSearchKeyword] = useState('');
 
   const statusMap: Record<TwitterAccount['status'], string> = {
     normal: '正常',
@@ -42,10 +43,37 @@ export default function Home() {
     suspended: '#1890ff',
   };
 
+  const getSearchParams = (keyword: string) => {
+    if (!keyword) return { username: undefined, id: undefined, email: undefined };
+    
+    // 判断是否为邮箱格式
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (emailRegex.test(keyword)) {
+      return { username: undefined, id: undefined, email: keyword };
+    }
+    
+    // 判断是否为ID格式（假设ID是纯数字）
+    const idRegex = /^\d+$/;
+    if (idRegex.test(keyword)) {
+      return { username: undefined, id: keyword, email: undefined };
+    }
+    
+    // 默认为用户名搜索
+    return { username: keyword, id: undefined, email: undefined };
+  };
+
   const fetchAccounts = async (page = 1, pageSize = 10, status = statusFilter) => {
     try {
       setLoading(true);
-      const response = await api.listAccounts(pageSize, page, status && status !== 'all' ? status : undefined);
+      const { username, id, email } = getSearchParams(searchKeyword);
+      const response = await api.listAccounts(
+        pageSize, 
+        page, 
+        status && status !== 'all' ? status : undefined,
+        username,
+        id,
+        email
+      );
       setAccounts(response.accounts);
       setTotal(response.total);
     } catch (error) {
@@ -57,7 +85,7 @@ export default function Home() {
 
   useEffect(() => {
     fetchAccounts();
-  }, [statusFilter]);
+  }, [statusFilter, searchKeyword]);
 
   const handleCreate = () => {
     setEditingAccount(null);
@@ -280,7 +308,7 @@ export default function Home() {
   return (
     <App>
       <div className="p-6">
-        <div className="mb-4" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <div className="mb-4" style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
           <Button
             type="primary"
             icon={<PlusOutlined />}
@@ -288,6 +316,14 @@ export default function Home() {
           >
             新建账号
           </Button>
+          <Input.Search
+            placeholder="搜索用户名/ID/邮箱"
+            allowClear
+            style={{ width: 250 }}
+            value={searchKeyword}
+            onChange={(e) => setSearchKeyword(e.target.value)}
+            onSearch={() => fetchAccounts()}
+          />
           <Select
             value={statusFilter || 'all'}
             style={{ width: 160 }}

@@ -45,9 +45,9 @@ export interface UpdateAccountRequest extends CreateAccountRequest {
 
 const api = {
   // 获取账号列表
-  listAccounts: async (pageSize: number = 10, pageNum: number = 1, status?: string) => {
+  listAccounts: async (pageSize: number = 10, pageNum: number = 1, status?: string, username?: string, id?: string, email?: string) => {
     const response = await axios.get<ListAccountsResponse>(`${API_BASE_URL}/v1/twitter/accounts`, {
-      params: { pageSize, pageNum, status }
+      params: { pageSize, pageNum, status, username, id, email }
     });
     return response.data;
   },
