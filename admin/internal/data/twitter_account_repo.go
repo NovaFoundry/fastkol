@@ -158,7 +158,7 @@ func (r *twitterAccountRepo) GetByID(ctx context.Context, id uint) (*biz.Twitter
 }
 
 // List 列出所有Twitter账号
-func (r *twitterAccountRepo) List(ctx context.Context, pageSize, pageNum int, status string) ([]*biz.TwitterAccount, int64, error) {
+func (r *twitterAccountRepo) List(ctx context.Context, pageSize, pageNum int, status string, id int64, username, email string) ([]*biz.TwitterAccount, int64, error) {
 	var accounts []*TwitterAccount
 	var total int64
 
@@ -167,6 +167,21 @@ func (r *twitterAccountRepo) List(ctx context.Context, pageSize, pageNum int, st
 	// 如果指定了状态，则按状态筛选
 	if status != "" {
 		query = query.Where("status = ?", AccountStatus(status))
+	}
+
+	// 如果指定了ID，则按ID筛选
+	if id > 0 {
+		query = query.Where("id = ?", id)
+	}
+
+	// 如果指定了用户名，则按用户名搜索
+	if username != "" {
+		query = query.Where("username LIKE ?", username+"%")
+	}
+
+	// 如果指定了邮箱，则按邮箱搜索
+	if email != "" {
+		query = query.Where("email LIKE ?", email+"%")
 	}
 
 	// 获取总数

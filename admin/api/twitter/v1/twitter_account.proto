@@ -135,6 +135,9 @@ message ListTwitterAccountsRequest {
   int32 page_size = 1; // 每页数量，默认20
   int32 page_num = 2; // 页码，默认1
   string status = 3; // 状态，默认normal
+  int64 id = 4; // 按ID搜索
+  string username = 5; // 按用户名搜索
+  string email = 6; // 按邮箱搜索
 }
 
 // 列出所有Twitter账号响应

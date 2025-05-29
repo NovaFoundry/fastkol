@@ -49,7 +49,7 @@ type TwitterAccountRepo interface {
 	Delete(context.Context, uint) error
 	GetByID(context.Context, uint) (*TwitterAccount, error)
 	GetByUsername(context.Context, string) (*TwitterAccount, error)
-	List(context.Context, int, int, string) ([]*TwitterAccount, int64, error)
+	List(context.Context, int, int, string, int64, string, string) ([]*TwitterAccount, int64, error)
 	GetAndLockTwitterAccounts(context.Context, int, int, string) ([]*TwitterAccount, error)
 	UnlockTwitterAccounts(context.Context, []uint, int) error
 }
@@ -149,7 +149,7 @@ func (uc *TwitterAccountUsecase) Get(ctx context.Context, id uint) (*TwitterAcco
 }
 
 // List 列出所有Twitter账号
-func (uc *TwitterAccountUsecase) List(ctx context.Context, pageSize, pageNum int, status string) ([]*TwitterAccount, int64, error) {
+func (uc *TwitterAccountUsecase) List(ctx context.Context, pageSize, pageNum int, status string, id int64, username, email string) ([]*TwitterAccount, int64, error) {
 	// 设置默认值
 	if pageSize <= 0 {
 		pageSize = 20 // 默认每页20条
@@ -160,9 +160,9 @@ func (uc *TwitterAccountUsecase) List(ctx context.Context, pageSize, pageNum int
 	if pageNum <= 0 {
 		pageNum = 1 // 默认第1页
 	}
-	uc.log.WithContext(ctx).Infof("List TwitterAccounts: pageSize=%v, pageNum=%v, status=%v", pageSize, pageNum, status)
+	uc.log.WithContext(ctx).Infof("List TwitterAccounts: pageSize=%v, pageNum=%v, status=%v, id=%v, username=%v, email=%v", pageSize, pageNum, status, id, username, email)
 
-	return uc.repo.List(ctx, pageSize, pageNum, status)
+	return uc.repo.List(ctx, pageSize, pageNum, status, id, username, email)
 }
 
 // GetAndLockTwitterAccounts 获取并锁定多个可用的Twitter账号
