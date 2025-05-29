@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { Table, Button, Space, Modal, Form, Input, Select, message, Popconfirm, Collapse, App, Alert } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined, EyeOutlined, EyeInvisibleOutlined } from '@ant-design/icons';
 import type { ColumnsType } from 'antd/es/table';
+import type { SortOrder } from 'antd/es/table/interface';
 import api, { TwitterAccount, CreateAccountRequest } from '../services/api';
 import { parseCurlCommand, parseFirefoxHeaders, parseFetchHeaders } from '../utils/parseHeaders';
 
@@ -26,6 +27,8 @@ export default function Home() {
   const [batchModalVisible, setBatchModalVisible] = useState(false);
   const [batchStatus, setBatchStatus] = useState<string>('normal');
   const [searchKeyword, setSearchKeyword] = useState('');
+  const [sortField, setSortField] = useState<string | undefined>(undefined);
+  const [sortOrder, setSortOrder] = useState<SortOrder>(null);
 
   const statusMap: Record<TwitterAccount['status'], string> = {
     normal: '正常',
@@ -72,7 +75,9 @@ export default function Home() {
         status && status !== 'all' ? status : undefined,
         username,
         id,
-        email
+        email,
+        sortField,
+        sortOrder === 'ascend' ? 'asc' : sortOrder === 'descend' ? 'desc' : null
       );
       setAccounts(response.accounts);
       setTotal(response.total);
@@ -85,7 +90,7 @@ export default function Home() {
 
   useEffect(() => {
     fetchAccounts();
-  }, [statusFilter, searchKeyword]);
+  }, [statusFilter, searchKeyword, sortField, sortOrder]);
 
   const handleCreate = () => {
     setEditingAccount(null);
@@ -222,7 +227,24 @@ export default function Home() {
     {
       title: 'ID',
       dataIndex: 'id',
-      key: 'id'
+      key: 'id',
+      sorter: true,
+      sortOrder: sortField === 'id' ? sortOrder : null,
+      onHeaderCell: () => ({
+        onClick: () => {
+          if (sortField !== 'id') {
+            setSortField('id');
+            setSortOrder('ascend');
+          } else if (sortOrder === null) {
+            setSortOrder('ascend');
+          } else if (sortOrder === 'ascend') {
+            setSortOrder('descend');
+          } else {
+            setSortField(undefined);
+            setSortOrder(null);
+          }
+        }
+      })
     },
     {
       title: '用户名',
