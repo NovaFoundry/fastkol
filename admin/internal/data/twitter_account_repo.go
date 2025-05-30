@@ -291,6 +291,18 @@ func (r *twitterAccountRepo) getAvailableAccountsByStatus(
 	return available, nil
 }
 
+/*
+*
+获取并锁定Twitter账号
+accountType: suspended, normal
+
+	suspended: 被封禁的账号
+	normal: 正常账号
+	空字符串: 正常账号 + 被封禁的账号
+
+count: 获取的账号数量
+lockSeconds: 锁定时间(秒)
+*/
 func (r *twitterAccountRepo) GetAndLockTwitterAccounts(ctx context.Context, count int, lockSeconds int, accountType string) ([]*biz.TwitterAccount, error) {
 	occupiedKey := "twitter_accounts_occupied"
 	occupiedMap, err := r.data.redis.HGetAll(ctx, occupiedKey).Result()
@@ -300,7 +312,31 @@ func (r *twitterAccountRepo) GetAndLockTwitterAccounts(ctx context.Context, coun
 
 	var selectedAccounts []*TwitterAccount
 
-	if accountType == "similar" {
+	if accountType == "suspended" {
+		availableSuspended, err := r.getAvailableAccountsByStatus(ctx, AccountStatusSuspended, occupiedMap)
+		if err != nil {
+			return nil, err
+		}
+		if len(availableSuspended) == 0 {
+			return nil, biz.ErrTwitterAccountNotFound
+		}
+		if len(availableSuspended) > count {
+			availableSuspended = availableSuspended[:count]
+		}
+		selectedAccounts = append(selectedAccounts, availableSuspended...)
+	} else if accountType == "normal" {
+		availableNormal, err := r.getAvailableAccountsByStatus(ctx, AccountStatusNormal, occupiedMap)
+		if err != nil {
+			return nil, err
+		}
+		if len(availableNormal) == 0 {
+			return nil, biz.ErrTwitterAccountNotFound
+		}
+		if len(availableNormal) > count {
+			availableNormal = availableNormal[:count]
+		}
+		selectedAccounts = append(selectedAccounts, availableNormal...)
+	} else {
 		availableSuspended, err := r.getAvailableAccountsByStatus(ctx, AccountStatusSuspended, occupiedMap)
 		if err != nil {
 			return nil, err
@@ -325,20 +361,6 @@ func (r *twitterAccountRepo) GetAndLockTwitterAccounts(ctx context.Context, coun
 		if len(selectedAccounts) > count {
 			selectedAccounts = selectedAccounts[:count]
 		}
-	} else if accountType == "search" {
-		availableNormal, err := r.getAvailableAccountsByStatus(ctx, AccountStatusNormal, occupiedMap)
-		if err != nil {
-			return nil, err
-		}
-		if len(availableNormal) == 0 {
-			return nil, biz.ErrTwitterAccountNotFound
-		}
-		if len(availableNormal) > count {
-			availableNormal = availableNormal[:count]
-		}
-		selectedAccounts = append(selectedAccounts, availableNormal...)
-	} else {
-		return nil, biz.ErrInvalidParameter
 	}
 
 	// 将选中的账号ID添加到Redis Hash中，并设置过期时间

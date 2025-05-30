@@ -182,10 +182,6 @@ func (uc *TwitterAccountUsecase) GetAndLockTwitterAccounts(ctx context.Context, 
 		lockSeconds = 600 // 最大锁定600秒
 	}
 
-	if accountType == "" {
-		accountType = "similar"
-	}
-
 	accounts, err := uc.repo.GetAndLockTwitterAccounts(ctx, count, lockSeconds, accountType)
 	if err != nil {
 		return nil, 0, err
