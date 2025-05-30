@@ -30,15 +30,15 @@ class TwitterFetcher(BaseFetcher):
         # 初始化时获取Twitter认证信息
         self.twitter_accounts = []     # 所有Twitter账号
         self.main_twitter_account = {} # 主账号
-        self.twitter_accounts_need_count = 10 # 需要获取的Twitter账号数量
+        self.twitter_accounts_need_count = 1 # 需要获取的Twitter账号数量
         self.twitter_accounts_last_used = {} # 所有Twitter账号上次使用时间
         self.twitter_accounts_cooldown_seconds = 5 # 所有Twitter账号冷却时间
 
-        # 新增search账号管理
-        self.search_accounts = []
-        self.search_accounts_need_count = 10 # 需要获取的search账号数量
-        self.search_accounts_last_used = {} # 所有search账号上次使用时间
-        self.search_accounts_cooldown_seconds = 5 # 所有search账号冷却时间
+        # 新增normal账号管理
+        self.normal_accounts = []
+        self.normal_accounts_need_count = 10 # 需要获取的normal账号数量
+        self.normal_accounts_last_used = {} # 所有normal账号上次使用时间
+        self.normal_accounts_cooldown_seconds = 60 # 所有normal账号冷却时间
 
     def _load_config(self):
         """加载 Twitter API 配置"""
@@ -285,7 +285,7 @@ class TwitterFetcher(BaseFetcher):
             # 获取 similar 专用账号，默认取 10 个
             ok, _ = await self._set_twitter_accounts()
             if not ok or not self.twitter_accounts:
-                return (False, "未获取到similar账号", [])
+                return (False, "未获取到twitter账号", [])
 
             # 如果没有提供 uid，先获取用户资料以获取 uid
             if not uid:
@@ -324,7 +324,10 @@ class TwitterFetcher(BaseFetcher):
                         all_similar_users.append(user)
 
             # for user in all_similar_users:
-            #     tweets = await self.fetch_user_tweets(user["username"], 20, user["uid"])
+            #     twitter_account = await self._get_available_twitter_account()
+            #     _, _, tweets = await self.fetch_user_tweets(user["username"], 20, user["uid"], twitter_account)
+            #     print('tweets', json.dumps(tweets))
+            #     user["tweets"] = tweets
             # 获取用户的 hashtag
             # for user in all_similar_users:
             #     user["hashtags"] = await self._get_user_hashtags(user["username"], user["uid"], user["bio"])
@@ -502,21 +505,21 @@ class TwitterFetcher(BaseFetcher):
         
         return tweet_data
 
-    async def _fetch_user_tweets_by_uid(self, uid: str, username: str, count: int, cursor: str = None) -> Dict[str, Any]:
+    async def _fetch_user_tweets_by_uid(self, uid: str, username: str, count: int, cursor: str = None, twitter_account: Dict[str, Any] = None) -> Dict[str, Any]:
         """通过用户ID获取推文列表
         
         Args:
             uid (str): 用户ID
             count (int): 要获取的推文数量
             cursor (str, optional): 分页游标，用于获取更多推文
-            
+            twitter_account (dict, optional): 指定推特账号
         Returns:
             Dict[str, Any]: 包含推文列表和分页信息的字典
         """
         self.logger.info(f"获取用户 {username} 的推文列表，cursor: {cursor}")
         try:
             # 准备 API 请求头
-            headers = self._get_headers()
+            headers = self._get_headers(twitter_account)
             
             # 准备请求参数
             variables = {
@@ -612,75 +615,74 @@ class TwitterFetcher(BaseFetcher):
             self.logger.error(traceback.format_exc())
             return {"tweets": [], "next_cursor": None}
 
-    async def fetch_user_tweets(self, username: str, count: int = 20, uid: str = None) -> List[Any]:
+    async def fetch_user_tweets(self, username: str, count: int = 20, uid: str = None, twitter_account: Dict[str, Any] = None) -> Tuple[bool, str, List[Any]]:
         """获取用户的推文列表
         
         Args:
             username (str): 用户名
             count (int): 要获取的推文数量）
             uid (str, optional): 用户ID，如果提供则使用此ID获取推文
-            
+            twitter_account (dict, optional): 指定推特账号
         Returns:
-            Dict[str, Any]: 包含推文列表和分页信息的字典
+            Tuple[bool, str, List[Any]]: (成功状态, 消息, 推文列表)
         """
-        self.logger.info(f"获取用户 {username} 的推文列表，数量: {count}")
-        
         try:
+            ok, _ = await self._set_twitter_accounts()
+            if not ok or not self.twitter_accounts:
+                return (False, "未获取到twitter账号", [])
+
             # 如果没有提供 uid，先获取用户资料以获取 uid
             if not uid:
                 self.logger.info(f"未提供 uid，尝试获取用户 {username} 的资料以获取 uid")
-                user_profile = await self.fetch_user_profile(username)
+                user_profile = await self.fetch_user_profile(username, twitter_account)
                 if user_profile and "uid" in user_profile:
                     uid = user_profile["uid"]
                     self.logger.info(f"成功获取用户 {username} 的 uid: {uid}")
                 else:
                     self.logger.warning(f"无法获取用户 {username} 的 uid，将使用默认方式获取推文")
-                    return []
-            
+                    return (False, "未获取到twitter账号", [])
+
             # 存储所有获取的推文
             all_tweets = []
             next_cursor = None
-            
+
             # 循环获取推文，直到达到请求的数量或没有更多推文
             while len(all_tweets) < count:
                 # 使用新的方法获取推文
-                result = await self._fetch_user_tweets_by_uid(uid, username, min(100, count - len(all_tweets)), next_cursor)
-                
+                result = await self._fetch_user_tweets_by_uid(uid, username, min(100, count - len(all_tweets)), next_cursor, twitter_account)
+
                 # 添加本次获取的推文到总列表
                 all_tweets.extend(result.get("tweets", []))
-                
+
                 # 更新下一页游标
                 next_cursor = result.get("next_cursor")
-                
+
                 # 如果没有更多推文或已经达到请求的数量，退出循环
                 if not next_cursor or len(all_tweets) >= count:
                     break
-                
+
                 # 添加随机延迟，避免请求过于频繁
                 await self._random_delay(1, 3)
-            
+
             # 确保返回数量不超过请求数量
-            return all_tweets[:count]
-            
+            return (True, "success", all_tweets[:count])
         except Exception as e:
             self.logger.error(f"获取用户推文失败: {str(e)}")
             import traceback
             self.logger.error(traceback.format_exc())
-            return []
+            return (False, "未获取到twitter账号", [])
 
-    # 获取可用的 search 账号，每个账号冷却时间60秒
-    async def _get_available_search_account(self, account_last_used: Dict[str, float]) -> Optional[Dict[str, Any]]:
-        """获取可用的 search 账号
-        
-        Args:
-            account_last_used (Dict[str, float]): 记录每个账号最后使用时间的字典
-            
-        Returns:
-            Optional[Dict[str, Any]]: 可用的账号，如果没有则返回 None
-        """
-        current_time = time.time()
-        available_accounts = [acc for acc in self.search_accounts if acc.get("id") not in account_last_used or current_time - account_last_used[acc.get("id")] >= 60]
-        return available_accounts[0] if available_accounts else None
+    # 获取可用的 normal 账号，每个账号冷却时间60秒
+    async def _get_available_normal_account(self) -> Optional[Dict[str, Any]] | None:
+        while True:
+            current_time = time.time()
+            available_accounts = [acc for acc in self.normal_accounts if acc.get("id") not in self.normal_accounts_last_used or current_time - self.normal_accounts_last_used[acc.get("id")] >= self.normal_accounts_cooldown_seconds]
+            if available_accounts:
+                acc = available_accounts[0]
+                self.normal_accounts_last_used[acc.get("id")] = time.time()
+                return acc
+            self.logger.info(f"所有normal账号都在冷却中，等待 10 秒...")
+            await asyncio.sleep(10)
 
     async def find_users_by_search(self, query: str, count: int = 20) -> Tuple[bool, str, List[Dict[str, Any]]]:
         """搜索用户
@@ -695,11 +697,11 @@ class TwitterFetcher(BaseFetcher):
         self.logger.info(f"搜索用户: {query}, 数量: {count}")
         try:
             # 获取 search 专用账号，默认取 10 个
-            ok = await self._set_search_accounts()
-            if not ok or not self.search_accounts:
+            ok = await self._set_normal_accounts()
+            if not ok or not self.normal_accounts:
                 self.logger.error("未获取到search账号")
                 return (False, "未获取到search账号", [])
-            self.logger.info(f"获取到 {len(self.search_accounts)} 个search账号")
+            self.logger.info(f"获取到 {len(self.normal_accounts)} 个 normal 账号")
 
             # 存储所有获取的用户
             all_users = []
@@ -717,7 +719,7 @@ class TwitterFetcher(BaseFetcher):
             # 循环获取用户，直到达到请求的数量或没有更多用户
             while len(processed_uids) < count:
                 # 选择下一个可用的账号
-                search_account = await self._get_available_search_account(account_last_used)
+                search_account = await self._get_available_normal_account()
                 if not search_account:
                     # 如果没有可用账号，每 10 秒检测一次
                     self.logger.info("所有账号都在冷却中，等待 10 秒...")
@@ -756,9 +758,9 @@ class TwitterFetcher(BaseFetcher):
                 # 添加随机延迟，避免请求过于频繁
                 await self._random_delay(1, 3)
             
-            ok, use_search_accounts_fallback = await self._set_twitter_accounts(use_search_accounts_fallback=True)
-            if not use_search_accounts_fallback:
-                await self._clear_search_accounts()
+            ok, use_normal_accounts_fallback = await self._set_twitter_accounts(use_normal_accounts_fallback=True)
+            if not use_normal_accounts_fallback:
+                await self._clear_normal_accounts()
             if ok:
                 self.logger.info("成功获取Twitter账号, 数量: {len(self.twitter_accounts)}")
             else:
@@ -908,18 +910,18 @@ class TwitterFetcher(BaseFetcher):
             self.logger.error(traceback.format_exc())
             return (False, str(e), [], None)
 
-    async def _get_twitter_acounts_from_admin_service(self, type_: str = "similar", count: int = 1) -> list:
+    async def _get_twitter_acounts_from_admin_service(self, account_type: str = "", count: int = 1) -> list:
         """通过服务发现获取admin的IP和端口，然后发送POST请求获取Twitter账号
         
         Args:
-            type_ (str): 账号类型，默认为 'similar'，可为 'search'
+            account_type (str): 账号类型，'normal' 表示正常账号，'suspend' 表示挂起账号，空字符串''表示 'suspend' + 'normal', 默认为 ''
             count (int): 账号数量，默认为 1
         Returns:
             list: 账号列表，失败时返回空列表
         """
 
         try:
-            self.logger.info(f"正在通过服务发现获取Twitter认证信息... type={type_}")
+            self.logger.info(f"正在通过服务发现获取Twitter认证信息... account_type={account_type}")
 
             # 使用ServiceDiscovery发送POST请求到admin
             response = await ServiceDiscovery.post(
@@ -927,7 +929,7 @@ class TwitterFetcher(BaseFetcher):
                 path="/v1/twitter/accounts/lock",
                 json={
                     "count": count,
-                    "type": type_
+                    "account_type": account_type
                 }  # 如果需要请求体，可以在这里添加
             )
             
@@ -946,30 +948,30 @@ class TwitterFetcher(BaseFetcher):
             self.logger.error(traceback.format_exc())
             return []
         
-    async def _set_twitter_accounts(self, use_search_accounts_fallback: bool = False) -> Tuple[bool, bool]:
+    async def _set_twitter_accounts(self, use_normal_accounts_fallback: bool = False) -> Tuple[bool, bool]:
         """设置Twitter账号
 
         Args:
-            use_search_fallback (bool): 是否用search账号补充，默认为False
+            use_normal_fallback (bool): 是否用normal账号补充，默认为False
         Returns:
-            Tuple[bool, bool]: (是否成功, 是否用search账号补充)
+            Tuple[bool, bool]: (是否成功, 是否用normal账号补充)
         """
         try:
             if self.twitter_accounts:
                 return True, False
             
-            self.twitter_accounts = await self._get_twitter_acounts_from_admin_service("similar", self.twitter_accounts_need_count)
+            self.twitter_accounts = await self._get_twitter_acounts_from_admin_service("", self.twitter_accounts_need_count)
             if self.twitter_accounts:
                 self.main_twitter_account = self.twitter_accounts[0]
                 self.logger.info(f"成功获取Twitter账号, 数量: {len(self.twitter_accounts)}, 主账号: {self.main_twitter_account.get('username')}")
                 return True, False
             else:
-                # 如果允许用search账号补充
-                if use_search_accounts_fallback and self.search_accounts:
-                    self.logger.info("尝试用search账号补充...")
-                    self.twitter_accounts = self.search_accounts.copy()
+                # 如果允许用normal账号补充
+                if use_normal_accounts_fallback and self.normal_accounts:
+                    self.logger.info("尝试用normal账号补充...")
+                    self.twitter_accounts = self.normal_accounts.copy()
                     self.main_twitter_account = self.twitter_accounts[0]
-                    self.logger.info(f"成功用search账号补充, 数量: {len(self.twitter_accounts)}, 主账号: {self.main_twitter_account.get('username')}")
+                    self.logger.info(f"成功用normal账号补充, 数量: {len(self.twitter_accounts)}, 主账号: {self.main_twitter_account.get('username')}")
                     return True, True
                 else:
                     self.logger.error("获取Twitter账号失败")
@@ -980,25 +982,25 @@ class TwitterFetcher(BaseFetcher):
             self.logger.error(traceback.format_exc())
             return False, False
     
-    async def _set_search_accounts(self) -> bool:
+    async def _set_normal_accounts(self) -> bool:
         """设置search专用Twitter账号
 
         Returns:
             bool: 是否成功
         """
         try:
-            if self.search_accounts:
+            if self.normal_accounts:
                 return True
             
-            self.search_accounts = await self._get_twitter_acounts_from_admin_service("search", self.search_accounts_need_count)
-            if self.search_accounts:
-                self.logger.info(f"成功获取search账号, 数量: {len(self.search_accounts)}")
+            self.normal_accounts = await self._get_twitter_acounts_from_admin_service("normal", self.normal_accounts_need_count)
+            if self.normal_accounts:
+                self.logger.info(f"成功获取normal账号, 数量: {len(self.normal_accounts)}")
                 return True
             else:
-                self.logger.error("获取search账号失败")
+                self.logger.error("获取normal账号失败")
                 return False
         except Exception as e:
-            self.logger.error(f"设置search账号时发生错误: {str(e)}")
+            self.logger.error(f"设置normal账号时发生错误: {str(e)}")
             import traceback
             self.logger.error(traceback.format_exc())
             return False
@@ -1022,46 +1024,46 @@ class TwitterFetcher(BaseFetcher):
                 cleared = False
         return cleared
     
-    async def _clear_search_accounts(self, delay: int = 60) -> bool:
+    async def _clear_normal_accounts(self, delay: int = 60) -> bool:
         """清理search专用Twitter账号"""
         try:
-            if self.search_accounts:
-                ids = [account.get("id") for account in self.search_accounts]
+            if self.normal_accounts:
+                ids = [account.get("id") for account in self.normal_accounts]
                 response = await ServiceDiscovery.post(
                     service_name="admin",
                     path="/v1/twitter/accounts/unlock",
                     json={"ids": ids, "delay": delay}  # 新增 delay 参数
                 )
                 if response.get("success", False):
-                    self.search_accounts = []
-                    self.logger.info("成功清理Search Twitter账号")
+                    self.normal_accounts = []
+                    self.logger.info("成功清理Normal Twitter账号")
                     return True
                 else:
-                    self.logger.error("清理Search Twitter账号失败")
+                    self.logger.error("清理Normal Twitter账号失败")
                     return False
         except Exception as e:
-            self.logger.error(f"清理Search Twitter账号时发生错误: {str(e)}")
+            self.logger.error(f"清理Normal Twitter账号时发生错误: {str(e)}")
             
     async def cleanup(self):
         await super().cleanup()
         """清理Twitter账号"""
         self.logger.info("清理Twitter账号...")
         await self._clear_twitter_accounts()
-        await self._clear_search_accounts()
+        await self._clear_normal_accounts()
         self.selected_twitter_account = {}
         self.logger.info("资源清理完成")
 
-    # async def _get_available_similar_account(self) -> Optional[Dict[str, Any]]:
-    #     """获取可用的 similar 账号（自动冷却等待）
-    #     Returns:
-    #         Optional[Dict[str, Any]]: 可用的账号，如果没有则等待直到有
-    #     """
-    #     while True:
-    #         current_time = time.time()
-    #         available_accounts = [acc for acc in self.similar_accounts if acc.get("id") not in self.similar_account_last_used or current_time - self.similar_account_last_used[acc.get("id")] >= self.similar_account_cooldown_seconds]
-    #         if available_accounts:
-    #             acc = available_accounts[0]
-    #             self.similar_account_last_used[acc.get("id")] = time.time()
-    #             return acc
-    #         self.logger.info("所有similar账号都在冷却中，等待 10 秒...")
-    #         await asyncio.sleep(10)
+    async def _get_available_twitter_account(self) -> Optional[Dict[str, Any]] | None:
+        """获取可用的 similar 账号（自动冷却等待）
+        Returns:
+            Optional[Dict[str, Any]]: 可用的账号，如果没有则等待直到有
+        """
+        while True:
+            current_time = time.time()
+            available_accounts = [acc for acc in self.twitter_accounts if acc.get("id") not in self.twitter_accounts_last_used or current_time - self.twitter_accounts_last_used[acc.get("id")] >= self.twitter_accounts_cooldown_seconds]
+            if available_accounts:
+                acc = available_accounts[0]
+                self.twitter_accounts_last_used[acc.get("id")] = time.time()
+                return acc
+            self.logger.info(f"所有similar账号都在冷却中，等待 {self.twitter_accounts_cooldown_seconds} 秒...")
+            await asyncio.sleep(self.twitter_accounts_cooldown_seconds)
