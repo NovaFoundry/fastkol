@@ -72,11 +72,12 @@ async def test_fetcher(platform, action, params):
 
 if __name__ == "__main__":
     # 示例: 测试 Twitter 爬虫
-    platform = "instagram"
-    action = "fetch_user_profile"  # 修改为测试搜索用户
+    platform = "twitter"
+    action = "fetch_user_tweets"  # 修改为测试搜索用户
     params = {
-        "username": "64325658281",  # 搜索关键词
-        "count": 100  # 要获取的用户数量
+        # "uid": "64325658281",
+        "username": "arpit_bhayani",
+        "count": 10  # 要获取的用户数量
     }
     
     logger.info(f"开始测试: 平台={platform}, 操作={action}, 参数={params}")

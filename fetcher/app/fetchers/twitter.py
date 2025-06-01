@@ -5,6 +5,7 @@ import re
 import json
 import random
 import time
+import math
 from app.fetchers.base import BaseFetcher
 from playwright.async_api import Page
 import urllib.parse
@@ -219,55 +220,55 @@ class TwitterFetcher(BaseFetcher):
         hashtags = re.findall(hashtag_pattern, text)
         return hashtags
 
-    async def _get_user_hashtags(self, username: str, uid: str, bio: str = None) -> List[str]:
-        """获取用户的 hashtag
+    # async def _get_user_hashtags(self, username: str, uid: str, bio: str = None) -> List[str]:
+    #     """获取用户的 hashtag
         
-        Args:
-            username (str): 用户名
-            uid (str): 用户ID
+    #     Args:
+    #         username (str): 用户名
+    #         uid (str): 用户ID
             
-        Returns:
-            List[str]: 用户最常用的 3-5 个 hashtag
-        """
-        try:
-            # 如果 bio 为空，说明调用时没传bio，需要获取用户资料; 
-            # 如果是空字符串，说明没获取到bio，没必要再去获取用户资料
-            if bio is None:
-                # 获取用户资料
-                user_profile = await self.fetch_user_profile(username)
-                bio = user_profile.get('bio', '')
+    #     Returns:
+    #         List[str]: 用户最常用的 3-5 个 hashtag
+    #     """
+    #     try:
+    #         # 如果 bio 为空，说明调用时没传bio，需要获取用户资料; 
+    #         # 如果是空字符串，说明没获取到bio，没必要再去获取用户资料
+    #         if bio is None:
+    #             # 获取用户资料
+    #             user_profile = await self.fetch_user_profile(username)
+    #             bio = user_profile.get('bio', '')
 
-            if bio:
-                bio_hashtags = await self._extract_hashtags(bio)
-            else:
-                bio_hashtags = []
+    #         if bio:
+    #             bio_hashtags = await self._extract_hashtags(bio)
+    #         else:
+    #             bio_hashtags = []
             
-            # 获取用户最近的推文
-            tweets = await self.fetch_user_tweets(username=username, count=20, uid=uid)
+    #         # 获取用户最近的推文
+    #         tweets = await self.fetch_user_tweets(username=username, count=20, uid=uid)
             
-            # 从推文中提取 hashtag
-            tweet_hashtags = []
-            for tweet in tweets:
-                tweet_hashtags.extend(await self._extract_hashtags(tweet.get('text', '')))
+    #         # 从推文中提取 hashtag
+    #         tweet_hashtags = []
+    #         for tweet in tweets:
+    #             tweet_hashtags.extend(await self._extract_hashtags(tweet.get('text', '')))
             
-            # 合并所有 hashtag
-            all_hashtags = bio_hashtags + tweet_hashtags
+    #         # 合并所有 hashtag
+    #         all_hashtags = bio_hashtags + tweet_hashtags
             
-            # 统计 hashtag 出现频率
-            hashtag_count = {}
-            for tag in all_hashtags:
-                hashtag_count[tag] = hashtag_count.get(tag, 0) + 1
+    #         # 统计 hashtag 出现频率
+    #         hashtag_count = {}
+    #         for tag in all_hashtags:
+    #             hashtag_count[tag] = hashtag_count.get(tag, 0) + 1
             
-            # 按频率排序并获取前 3-5 个
-            sorted_hashtags = sorted(hashtag_count.items(), key=lambda x: x[1], reverse=True)
-            top_hashtags = [tag for tag, _ in sorted_hashtags[:5]]
-            print(f"用户 {username} 的 hashtag: {top_hashtags}")
+    #         # 按频率排序并获取前 3-5 个
+    #         sorted_hashtags = sorted(hashtag_count.items(), key=lambda x: x[1], reverse=True)
+    #         top_hashtags = [tag for tag, _ in sorted_hashtags[:5]]
+    #         print(f"用户 {username} 的 hashtag: {top_hashtags}")
             
-            return top_hashtags
+    #         return top_hashtags
             
-        except Exception as e:
-            self.logger.error(f"获取用户 hashtag 失败: {str(e)}")
-            return []
+    #     except Exception as e:
+    #         self.logger.error(f"获取用户 hashtag 失败: {str(e)}")
+    #         return []
 
     async def find_similar_users(self, username: str, count: int = 20, uid: str = None) -> Tuple[bool, str, List[Dict[str, Any]]]:
         """找到与指定用户相似的用户,包括二度关系用户
@@ -324,18 +325,64 @@ class TwitterFetcher(BaseFetcher):
                         all_similar_users.append(user)
 
             # for user in all_similar_users:
-            #     twitter_account = await self._get_available_twitter_account()
-            #     _, _, tweets = await self.fetch_user_tweets(user["username"], 20, user["uid"], twitter_account)
-            #     print('tweets', json.dumps(tweets))
-            #     user["tweets"] = tweets
-            # 获取用户的 hashtag
-            # for user in all_similar_users:
-            #     user["hashtags"] = await self._get_user_hashtags(user["username"], user["uid"], user["bio"])
-            #     await self._random_delay(1, 2)
+            #     # 记录已尝试过的账号ID
+            #     tried_account_ids = set()
+            #     success = False
+            #     code = 200
+            #     tweets = []
+                
+            #     while not success:
+            #         twitter_account = await self._get_available_normal_account()
+            #         if not twitter_account:
+            #             self.logger.warning(f"无法获取可用的normal账号，无法获取用户的推文")
+            #             break
+                        
+            #         # 如果这个账号已经尝试过，跳过
+            #         if twitter_account.get("id") in tried_account_ids:
+            #             continue
+                        
+            #         tried_account_ids.add(twitter_account.get("id"))
+            #         success, code, _, tweets = await self.fetch_user_tweets(user["username"], 10, user["uid"], twitter_account)
+                    
+            #         if success:
+            #             # 计算平均浏览量
+            #             user["avg_views_last_10_tweets"] = await self._calculate_avg_views(tweets)
+            #             break
+            #         else:
+            #             # 只有在遇到频率限制时才尝试下一个账号
+            #             if code == 429:
+            #                 self.logger.warning(f"使用账号 {twitter_account.get('username')} 获取用户 {user['username']} 的推文遇到频率限制，尝试下一个账号")
+            #                 continue
+            #             else:
+            #                 self.logger.warning(f"使用账号 {twitter_account.get('username')} 获取用户 {user['username']} 的推文失败，错误码: {code}")
+            #                 break
             return (True, "success", all_similar_users[:count])
         except Exception as e:
             self.logger.error(f"查找相似用户失败: {str(e)}")
             return (False, str(e), [])
+
+    async def _calculate_avg_views(self, tweets: List[Dict[str, Any]], limit: int = 10) -> float:
+        """计算非置顶推文的平均浏览量
+        
+        Args:
+            tweets (List[Dict[str, Any]]): 推文列表
+            limit (int): 要计算的推文数量限制，默认为10
+            
+        Returns:
+            float: 平均浏览量（向上取整），如果没有符合条件的推文则返回0
+        """
+        if not tweets:
+            return 0
+            
+        # 过滤掉置顶推文并获取前N条
+        non_pinned_tweets = [tweet for tweet in tweets if not tweet.get('is_pinned', False)][:limit]
+        if not non_pinned_tweets:
+            return 0
+            
+        # 确保views_count是整数
+        total_views = sum(tweet.get('views_count', 0) for tweet in non_pinned_tweets)
+        avg_views = total_views / len(non_pinned_tweets)
+        return math.ceil(avg_views)  # 向上取整
 
     async def _extract_email_from_text(self, text: str) -> str:
         """Extract email address from text if present
@@ -500,12 +547,13 @@ class TwitterFetcher(BaseFetcher):
             "retweet_count": legacy.get("retweet_count", 0),
             "reply_count": legacy.get("reply_count", 0),
             "quote_count": legacy.get("quote_count", 0),
+            "views_count": int(result.get("views", {}).get("count", '0')),
             "url": f"https://x.com/{username}/status/{tweet_id}"
         }
         
         return tweet_data
 
-    async def _fetch_user_tweets_by_uid(self, uid: str, username: str, count: int, cursor: str = None, twitter_account: Dict[str, Any] = None) -> Dict[str, Any]:
+    async def _fetch_user_tweets_by_uid(self, uid: str, username: str, count: int, cursor: str = None, twitter_account: Dict[str, Any] = None) -> Tuple[bool, int, Dict[str, Any]]:
         """通过用户ID获取推文列表
         
         Args:
@@ -514,7 +562,7 @@ class TwitterFetcher(BaseFetcher):
             cursor (str, optional): 分页游标，用于获取更多推文
             twitter_account (dict, optional): 指定推特账号
         Returns:
-            Dict[str, Any]: 包含推文列表和分页信息的字典
+            Tuple[bool, int, Dict[str, Any]]: (是否成功, 状态码, 包含推文列表和分页信息的字典)
         """
         self.logger.info(f"获取用户 {username} 的推文列表，cursor: {cursor}")
         try:
@@ -543,7 +591,7 @@ class TwitterFetcher(BaseFetcher):
             endpoint = self.api_endpoints.get("user_tweets")
             if not endpoint:
                 self.logger.error("无法获取 user_tweets API 端点")
-                return {"tweets": [], "next_cursor": None}
+                return False, 500, {"tweets": [], "next_cursor": None}
             
             # URL 参数编码
             params = {
@@ -566,6 +614,10 @@ class TwitterFetcher(BaseFetcher):
                     request_kwargs["proxy"] = proxy
                 
                 async with session.get(url, **request_kwargs) as response:
+                    if response.status != 200:
+                        error_text = await response.text()
+                        self.logger.error(f"Twitter API 返回非 200 状态码: {response.status}, 内容: {error_text}")
+                        return False, response.status, {"tweets": [], "next_cursor": None}
                     response_data = await response.json()
             
             # 解析响应数据
@@ -581,6 +633,7 @@ class TwitterFetcher(BaseFetcher):
                     result = instruction.get("entry", {}).get("content", {}).get("itemContent", {}).get("tweet_results", {}).get("result", {})
                     tweet_data = await self._extract_tweet_data(result, username)
                     if tweet_data:
+                        tweet_data["is_pinned"] = True
                         tweets.append(tweet_data)
 
                 elif instruction.get("type") == "TimelineAddEntries":
@@ -593,18 +646,20 @@ class TwitterFetcher(BaseFetcher):
                                 tweets.append(tweet_data)
                             
                         elif entry.get("entryId", "").startswith("profile-conversation-"):
+                            # 自己回复的推文，取原始推文数据
                             items = entry.get("content", {}).get("items", [])
-                            for item in items:
-                                result = item.get("item", {}).get("itemContent", {}).get("tweet_results", {}).get("result", {})
-                                tweet_data = await self._extract_tweet_data(result, username)
-                                if tweet_data:
-                                    tweets.append(tweet_data)
+                            if not items:
+                                continue
+                            result = items[0].get("item", {}).get("itemContent", {}).get("tweet_results", {}).get("result", {})
+                            tweet_data = await self._extract_tweet_data(result, username)
+                            if tweet_data:
+                                tweets.append(tweet_data)
                                     
                         # 提取下一页游标
                         elif entry.get("entryId", "").startswith("cursor-bottom-"):
                             next_cursor = entry.get("content", {}).get("value", "")
             
-            return {
+            return True, 200, {
                 "tweets": tweets,
                 "next_cursor": next_cursor
             }
@@ -613,9 +668,9 @@ class TwitterFetcher(BaseFetcher):
             self.logger.error(f"获取用户推文失败: {str(e)}")
             import traceback
             self.logger.error(traceback.format_exc())
-            return {"tweets": [], "next_cursor": None}
+            return False, 500, {"tweets": [], "next_cursor": None}
 
-    async def fetch_user_tweets(self, username: str, count: int = 20, uid: str = None, twitter_account: Dict[str, Any] = None) -> Tuple[bool, str, List[Any]]:
+    async def fetch_user_tweets(self, username: str, count: int = 20, uid: str = None, twitter_account: Dict[str, Any] = None) -> Tuple[bool, int, str, List[Any]]:
         """获取用户的推文列表
         
         Args:
@@ -624,12 +679,16 @@ class TwitterFetcher(BaseFetcher):
             uid (str, optional): 用户ID，如果提供则使用此ID获取推文
             twitter_account (dict, optional): 指定推特账号
         Returns:
-            Tuple[bool, str, List[Any]]: (成功状态, 消息, 推文列表)
+            Tuple[bool, int, str, List[Any]]: (是否成功, 状态码, 消息, 推文列表)
         """
         try:
             ok, _ = await self._set_twitter_accounts()
             if not ok or not self.twitter_accounts:
-                return (False, "未获取到twitter账号", [])
+                return False, 500, "未获取到twitter账号", []
+            if not twitter_account:
+                twitter_account = await self._get_available_normal_account()
+                if not twitter_account:
+                    return False, 500, "未获取到normal账号", []
 
             # 如果没有提供 uid，先获取用户资料以获取 uid
             if not uid:
@@ -640,7 +699,7 @@ class TwitterFetcher(BaseFetcher):
                     self.logger.info(f"成功获取用户 {username} 的 uid: {uid}")
                 else:
                     self.logger.warning(f"无法获取用户 {username} 的 uid，将使用默认方式获取推文")
-                    return (False, "未获取到twitter账号", [])
+                    return False, 404, "无法获取用户uid", []
 
             # 存储所有获取的推文
             all_tweets = []
@@ -649,7 +708,10 @@ class TwitterFetcher(BaseFetcher):
             # 循环获取推文，直到达到请求的数量或没有更多推文
             while len(all_tweets) < count:
                 # 使用新的方法获取推文
-                result = await self._fetch_user_tweets_by_uid(uid, username, min(100, count - len(all_tweets)), next_cursor, twitter_account)
+                success, code, result = await self._fetch_user_tweets_by_uid(uid, username, min(100, count - len(all_tweets)), next_cursor, twitter_account)
+                
+                if not success:
+                    return False, code, f"获取推文失败: HTTP {code}", all_tweets
 
                 # 添加本次获取的推文到总列表
                 all_tweets.extend(result.get("tweets", []))
@@ -665,15 +727,20 @@ class TwitterFetcher(BaseFetcher):
                 await self._random_delay(1, 3)
 
             # 确保返回数量不超过请求数量
-            return (True, "success", all_tweets[:count])
+            return True, 200, "success", all_tweets[:count]
         except Exception as e:
             self.logger.error(f"获取用户推文失败: {str(e)}")
             import traceback
             self.logger.error(traceback.format_exc())
-            return (False, "未获取到twitter账号", [])
+            return False, 500, f"获取推文失败: {str(e)}", []
 
     # 获取可用的 normal 账号，每个账号冷却时间60秒
     async def _get_available_normal_account(self) -> Optional[Dict[str, Any]] | None:
+        if not self.normal_accounts:
+            ok = await self._set_normal_accounts()
+            if not ok or not self.normal_accounts:
+                self.logger.info("没有获取到normal账号")
+                return None
         while True:
             current_time = time.time()
             available_accounts = [acc for acc in self.normal_accounts if acc.get("id") not in self.normal_accounts_last_used or current_time - self.normal_accounts_last_used[acc.get("id")] >= self.normal_accounts_cooldown_seconds]
@@ -936,7 +1003,7 @@ class TwitterFetcher(BaseFetcher):
             # 检查响应是否成功
             if response and response.get('accounts', []) and len(response.get('accounts', [])) > 0:
                 twitter_accounts = response.get('accounts', [])
-                self.logger.info(f"成功获取Twitter账号, 数量: {len(twitter_accounts)}")
+                self.logger.info(f"成功获取Twitter账号, 数量: {len(twitter_accounts)}, 类型: {account_type}")
                 return twitter_accounts
             else:
                 self.logger.error(f"获取Twitter账号失败: 响应格式不正确")
@@ -1058,6 +1125,9 @@ class TwitterFetcher(BaseFetcher):
         Returns:
             Optional[Dict[str, Any]]: 可用的账号，如果没有则等待直到有
         """
+        if not self.twitter_accounts:
+            self.logger.info("没有twitter账号，请先获取...")
+            return None
         while True:
             current_time = time.time()
             available_accounts = [acc for acc in self.twitter_accounts if acc.get("id") not in self.twitter_accounts_last_used or current_time - self.twitter_accounts_last_used[acc.get("id")] >= self.twitter_accounts_cooldown_seconds]
