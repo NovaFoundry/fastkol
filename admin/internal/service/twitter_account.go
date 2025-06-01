@@ -80,13 +80,18 @@ func (s *TwitterAccountService) UpdateTwitterAccount(ctx context.Context, req *v
 		Email:    req.Email,
 		Phone:    req.Phone,
 		Password: req.Password,
-		Headers: biz.TwitterAccountHeaders{
+		Status:   req.Status,
+	}
+
+	// 只有当Headers不为nil时才设置Headers字段
+	if req.Headers != nil {
+		s.log.WithContext(ctx).Infof("Update TwitterAccount: %v, Headers: %v", req.Username, req.Headers)
+		account.Headers = biz.TwitterAccountHeaders{
 			Authorization:        req.Headers.Authorization,
 			XCsrfToken:           req.Headers.XCsrfToken,
 			Cookie:               req.Headers.Cookie,
 			XClientTransactionID: req.Headers.XClientTransactionId,
-		},
-		Status: req.Status,
+		}
 	}
 
 	result, err := s.uc.Update(ctx, account)
