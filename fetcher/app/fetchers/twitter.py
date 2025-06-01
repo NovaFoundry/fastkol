@@ -40,6 +40,9 @@ class TwitterFetcher(BaseFetcher):
         self.normal_accounts_need_count = 10 # 需要获取的normal账号数量
         self.normal_accounts_last_used = {} # 所有normal账号上次使用时间
         self.normal_accounts_cooldown_seconds = 60 # 所有normal账号冷却时间
+        
+        # 记录每个账号的连续429错误次数
+        self.account_rate_limit_count = {}
 
     def _load_config(self):
         """加载 Twitter API 配置"""
@@ -270,6 +273,33 @@ class TwitterFetcher(BaseFetcher):
     #         self.logger.error(f"获取用户 hashtag 失败: {str(e)}")
     #         return []
 
+    async def _handle_rate_limit(self, twitter_account: Dict[str, Any], username: str) -> None:
+        """处理频率限制
+        
+        Args:
+            twitter_account: Twitter账号信息
+            username: 用户名
+        """
+        account_id = twitter_account.get("id")
+        if not account_id:
+            return
+            
+        # 增加连续429错误计数
+        self.account_rate_limit_count[account_id] = self.account_rate_limit_count.get(account_id, 0) + 1
+        
+        # 只有当连续3次出现429时才更新账号状态
+        if self.account_rate_limit_count[account_id] >= 3:
+            # 在函数内部导入，避免循环导入
+            from app.celery_app import update_twitter_account_status
+            # 触发异步任务更新账号状态
+            update_twitter_account_status.delay(account_id, twitter_account.get('username', ''), "suspended")
+            
+            self.logger.warning(f"账号 {twitter_account.get('username')} 连续3次遇到频率限制，已触发状态更新任务")
+            # 重置计数器
+            self.account_rate_limit_count[account_id] = 0
+        else:
+            self.logger.warning(f"账号 {twitter_account.get('username')} 第 {self.account_rate_limit_count[account_id]} 次遇到频率限制")
+
     async def find_similar_users(self, username: str, count: int = 20, uid: str = None) -> Tuple[bool, str, List[Dict[str, Any]]]:
         """找到与指定用户相似的用户,包括二度关系用户
         
@@ -345,18 +375,27 @@ class TwitterFetcher(BaseFetcher):
             #         success, code, _, tweets = await self.fetch_user_tweets(user["username"], 10, user["uid"], twitter_account)
                     
             #         if success:
+            #             # 重置该账号的429错误计数
+            #             account_id = twitter_account.get("id")
+            #             if account_id:
+            #                 self.account_rate_limit_count[account_id] = 0
             #             # 计算平均浏览量
             #             user["avg_views_last_10_tweets"] = await self._calculate_avg_views(tweets)
             #             break
             #         else:
             #             # 只有在遇到频率限制时才尝试下一个账号
             #             if code == 429:
-            #                 self.logger.warning(f"使用账号 {twitter_account.get('username')} 获取用户 {user['username']} 的推文遇到频率限制，尝试下一个账号")
+            #                 # 处理频率限制
+            #                 await self._handle_rate_limit(twitter_account, user["username"])
             #                 continue
             #             else:
+            #                 # 其他错误时重置429错误计数
+            #                 account_id = twitter_account.get("id")
+            #                 if account_id:
+            #                     self.account_rate_limit_count[account_id] = 0
             #                 self.logger.warning(f"使用账号 {twitter_account.get('username')} 获取用户 {user['username']} 的推文失败，错误码: {code}")
             #                 break
-            return (True, "success", all_similar_users[:count])
+            # return (True, "success", all_similar_users[:count])
         except Exception as e:
             self.logger.error(f"查找相似用户失败: {str(e)}")
             return (False, str(e), [])
@@ -981,7 +1020,7 @@ class TwitterFetcher(BaseFetcher):
         """通过服务发现获取admin的IP和端口，然后发送POST请求获取Twitter账号
         
         Args:
-            account_type (str): 账号类型，'normal' 表示正常账号，'suspend' 表示挂起账号，空字符串''表示 'suspend' + 'normal', 默认为 ''
+            account_type (str): 账号类型，'normal' 表示正常账号，'suspended' 表示挂起账号，空字符串''表示 'suspended' + 'normal', 默认为 ''
             count (int): 账号数量，默认为 1
         Returns:
             list: 账号列表，失败时返回空列表
@@ -1085,6 +1124,8 @@ class TwitterFetcher(BaseFetcher):
             )
             if response.get("success", False):
                 self.twitter_accounts = []
+                # 重置账号的429错误计数
+                self.account_rate_limit_count = {}
                 self.logger.info("成功清理Twitter账号")
             else:
                 self.logger.error("清理Twitter账号失败")
@@ -1103,6 +1144,8 @@ class TwitterFetcher(BaseFetcher):
                 )
                 if response.get("success", False):
                     self.normal_accounts = []
+                    # 重置账号的429错误计数
+                    self.account_rate_limit_count = {}
                     self.logger.info("成功清理Normal Twitter账号")
                     return True
                 else:

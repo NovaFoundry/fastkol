@@ -13,6 +13,8 @@ from app.fetchers.tiktok import TiktokFetcher
 from app.proxy.pool import ProxyPool
 from app.account_pool.manager import AccountManager
 from app.db.operations import update_fetch_task
+from app.core.service_discovery import ServiceDiscovery
+import aiohttp
 
 # 添加项目根目录到 Python 路径
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -114,6 +116,53 @@ def process_search_task(task_data):
     
     except Exception as e:
         logger.error(f"任务处理外部失败: {str(e)}")
+        return {"status": "error", "error": str(e)}
+
+@app.task(name='app.celery_app.update_twitter_account_status')
+def update_twitter_account_status(account_id: str, username: str, status: str):
+    """更新账号状态
+    
+    Args:
+        account_id (str): 账号ID
+        status (str): 账号状态，可选值：
+            - 'normal': 正常状态
+            - 'suspended': 账号被封禁
+    """
+    try:
+        logger.info(f"更新账号 id: {account_id}, username: {username} 状态为: {status}")
+        
+        async def async_process():
+            try:
+                # 调用 admin 服务更新账号状态
+                response = await ServiceDiscovery.put(
+                    service_name="admin",
+                    path=f"/v1/twitter/accounts/{account_id}",
+                    json={
+                        "status": status
+                    }
+                )
+                
+                if response:
+                    # 如果成功执行到这里，说明HTTP状态码是2xx
+                    logger.info(f"成功更新账号 id: {account_id}, username: {username} 状态为 {status}")
+                    return {"status": "success"}
+                else:
+                    logger.error(f"更新账号状态失败: {response}")
+                    return {"status": "failed", "error": "更新账号状态失败"}
+                
+            except aiohttp.ClientResponseError as e:
+                # 处理HTTP错误
+                error_msg = f"HTTP错误: {e.status} - {e.message}"
+                logger.error(f"更新账号状态失败: {error_msg}")
+                return {"status": "failed", "error": error_msg}
+            except Exception as e:
+                logger.error(f"更新账号状态时发生错误: {str(e)}")
+                return {"status": "error", "error": str(e)}
+        
+        return asyncio.run(async_process())
+    
+    except Exception as e:
+        logger.error(f"更新账号状态任务处理失败: {str(e)}")
         return {"status": "error", "error": str(e)}
 
 async def run_similar_fetcher(platform, params) -> Tuple[bool, str, List[Dict[str, Any]]]:

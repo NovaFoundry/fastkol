@@ -98,4 +98,21 @@ class ServiceDiscovery:
         headers = {
             "Content-Type": "application/json"
         }
-        return await ServiceDiscovery.make_request(service_name, "POST", path, headers=headers, **kwargs) 
+        return await ServiceDiscovery.make_request(service_name, "POST", path, headers=headers, **kwargs)
+
+    @staticmethod
+    async def put(service_name: str, path: str, **kwargs) -> Dict[str, Any]:
+        """发送PUT请求
+        
+        Args:
+            service_name: 服务名称
+            path: API路径
+            **kwargs: 传递给 aiohttp 的其他参数
+            
+        Returns:
+            响应数据
+        """
+        headers = {
+            "Content-Type": "application/json"
+        }
+        return await ServiceDiscovery.make_request(service_name, "PUT", path, headers=headers, **kwargs) 
