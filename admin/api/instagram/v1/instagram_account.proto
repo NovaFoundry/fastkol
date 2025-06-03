@@ -1,0 +1,196 @@
+syntax = "proto3";
+
+package instagram.v1;
+
+import "google/api/annotations.proto";
+
+option go_package = "Admin/api/instagram/v1;v1";
+option java_multiple_files = true;
+option java_package = "dev.kratos.api.instagram.v1";
+option java_outer_classname = "InstagramProtoV1";
+
+// 错误原因枚举
+enum ErrorReason {
+  // 未知错误
+  UNKNOWN = 0;
+  // Instagram账号未找到
+  INSTAGRAM_ACCOUNT_NOT_FOUND = 1;
+  // Instagram账号已存在
+  INSTAGRAM_ACCOUNT_ALREADY_EXISTS = 2;
+  // 参数无效
+  INVALID_PARAMETER = 3;
+}
+
+// InstagramAccount服务定义
+service InstagramAccount {
+  // 创建Instagram账号
+  rpc CreateInstagramAccount (CreateInstagramAccountRequest) returns (CreateInstagramAccountReply) {
+    option (google.api.http) = {
+      post: "/v1/instagram/accounts"
+      body: "*"
+    };
+  }
+  
+  // 更新Instagram账号
+  rpc UpdateInstagramAccount (UpdateInstagramAccountRequest) returns (UpdateInstagramAccountReply) {
+    option (google.api.http) = {
+      put: "/v1/instagram/accounts/{id}"
+      body: "*"
+    };
+  }
+  
+  // 删除Instagram账号
+  rpc DeleteInstagramAccount (DeleteInstagramAccountRequest) returns (DeleteInstagramAccountReply) {
+    option (google.api.http) = {
+      delete: "/v1/instagram/accounts/{id}"
+    };
+  }
+  
+  // 获取Instagram账号
+  rpc GetInstagramAccount (GetInstagramAccountRequest) returns (GetInstagramAccountReply) {
+    option (google.api.http) = {
+      get: "/v1/instagram/accounts/{id}"
+    };
+  }
+  
+  // 列出所有Instagram账号
+  rpc ListInstagramAccounts (ListInstagramAccountsRequest) returns (ListInstagramAccountsReply) {
+    option (google.api.http) = {
+      get: "/v1/instagram/accounts"
+    };
+  }
+
+  // 获取并锁定Instagram账号
+  rpc LockInstagramAccounts (LockInstagramAccountsRequest) returns (LockInstagramAccountsReply) {
+    option (google.api.http) = {
+      post: "/v1/instagram/accounts/lock"
+      body: "*"
+    };
+  }
+
+  // 解锁Instagram账号
+  rpc UnlockInstagramAccounts (UnlockInstagramAccountsRequest) returns (UnlockInstagramAccountsReply) {
+    option (google.api.http) = {
+      post: "/v1/instagram/accounts/unlock"
+      body: "*"
+    };
+  }
+}
+
+// Headers消息定义
+message Headers {
+  string cookie = 1 [json_name = "cookie"];
+  string x_csrftoken = 2 [json_name = "x-csrftoken"];
+}
+
+// 创建Instagram账号请求
+message CreateInstagramAccountRequest {
+  string username = 1;
+  string email = 2;
+  string phone = 3;
+  string password = 4;
+  Headers headers = 5;
+  string status = 6;
+}
+
+// 创建Instagram账号响应
+message CreateInstagramAccountReply {
+  InstagramAccountInfo account = 1;
+}
+
+// 更新Instagram账号请求
+message UpdateInstagramAccountRequest {
+  int64 id = 1;
+  string username = 2;
+  string email = 3;
+  string phone = 4;
+  string password = 5;
+  Headers headers = 6;
+  string status = 7;
+}
+
+// 更新Instagram账号响应
+message UpdateInstagramAccountReply {
+  int64 id = 1;
+  string username = 2;
+  string email = 3;
+  string phone = 4;
+  Headers headers = 5;
+  string status = 6;
+  string updated_at = 7;
+}
+
+// 删除Instagram账号请求
+message DeleteInstagramAccountRequest {
+  int64 id = 1;
+}
+
+// 删除Instagram账号响应
+message DeleteInstagramAccountReply {
+  bool success = 1;
+}
+
+// 获取Instagram账号请求
+message GetInstagramAccountRequest {
+  int64 id = 1;
+}
+
+// 获取Instagram账号响应
+message GetInstagramAccountReply {
+  InstagramAccountInfo account = 1;
+}
+
+// 列出所有Instagram账号请求
+message ListInstagramAccountsRequest {
+  int32 page_size = 1; // 每页数量，默认20
+  int32 page_num = 2; // 页码，默认1
+  string status = 3; // 状态，默认normal
+  int64 id = 4; // 按ID搜索
+  string username = 5; // 按用户名搜索
+  string email = 6; // 按邮箱搜索
+  string sort_field = 7; // 排序字段，支持id，默认id
+  string sort_order = 8; // 排序方向，支持asc、desc，默认asc
+}
+
+// 列出所有Instagram账号响应
+message ListInstagramAccountsReply {
+  repeated InstagramAccountInfo accounts = 1;
+  int32 total = 2;
+}
+
+// 获取并锁定Instagram账号请求
+message LockInstagramAccountsRequest {
+  int32 count = 1; // 需要获取的账号数量，默认1
+  int32 lock_seconds = 2; // 锁定时间，单位秒，默认60秒
+}
+
+// 获取并锁定Instagram账号响应
+message LockInstagramAccountsReply {
+  repeated InstagramAccountInfo accounts = 1;
+  int32 lock_seconds = 2; // 实际锁定的时间
+}
+
+// 解锁Instagram账号请求
+message UnlockInstagramAccountsRequest {
+  repeated int64 ids = 1; // 要解锁的账号ID列表
+  int32 delay = 2; // 延迟释放时间，单位秒，不设置或0表示立即释放
+}
+
+// 解锁Instagram账号响应
+message UnlockInstagramAccountsReply {
+  bool success = 1;
+  int32 unlocked_count = 2; // 成功解锁的账号数量
+}
+
+// Instagram账号信息
+message InstagramAccountInfo {
+  int64 id = 1;
+  string username = 2;
+  string email = 3;
+  string phone = 4;
+  string password = 5;
+  Headers headers = 6;
+  string status = 7;
+  string created_at = 8;
+  string updated_at = 9;
+} 

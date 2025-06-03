@@ -2,6 +2,7 @@ package server
 
 import (
 	v1 "Admin/api/helloworld/v1"
+	instagramv1 "Admin/api/instagram/v1"
 	twitterv1 "Admin/api/twitter/v1"
 	"Admin/internal/conf"
 	"Admin/internal/service"
@@ -13,7 +14,7 @@ import (
 )
 
 // NewHTTPServer new an HTTP server.
-func NewHTTPServer(c *conf.Server, greeter *service.GreeterService, twitterAccount *service.TwitterAccountService, logger log.Logger) *http.Server {
+func NewHTTPServer(c *conf.Server, greeter *service.GreeterService, twitterAccount *service.TwitterAccountService, instagramAccount *service.InstagramAccountService, logger log.Logger) *http.Server {
 	var opts = []http.ServerOption{
 		http.Middleware(
 			recovery.Recovery(),
@@ -36,5 +37,6 @@ func NewHTTPServer(c *conf.Server, greeter *service.GreeterService, twitterAccou
 	srv := http.NewServer(opts...)
 	v1.RegisterGreeterHTTPServer(srv, greeter)
 	twitterv1.RegisterTwitterAccountHTTPServer(srv, twitterAccount)
+	instagramv1.RegisterInstagramAccountHTTPServer(srv, instagramAccount)
 	return srv
 }
