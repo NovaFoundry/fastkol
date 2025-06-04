@@ -28,14 +28,12 @@ class InstagramFetcher(BaseFetcher):
         self.page = None
         self.browser = None
         self.logger = logger
-        # 初始化时获取Instagram认证信息
-        self.instagram_accounts = [
-            {
-                'csrfToken': 'W8zDBxk4B22zqlngYlYfnbnftuahOJDc',
-                'cookie': 'ig_did=994E101C-FE30-4B8C-AD30-ADD4BA10D14F; datr=gdjBZ3Mn3TZ3vlglZrcONNZC; mid=Z8HYgwAEAAFG1OLdoKK1W3qAE5-F; ig_nrcb=1; ps_l=1; ps_n=1; csrftoken=W8zDBxk4B22zqlngYlYfnbnftuahOJDc; ds_user_id=3002998921; sessionid=3002998921%3ARtrjJcp3XoUmT6%3A13%3AAYcP9MLEAn4D5uOpijJH2PWu2e-5tRQ5j-2h1HCwAw; wd=854x672; rur=\"HIL\\0543002998921\\0541780472676:01fec3f6662094555a2aba2f3147564a639166ba33928bda5a532df89a5fe2538633373f\"',
-            }
-        ]  # 所有Instagram账号
-        self.selected_instagram_account = self.instagram_accounts[0]
+        # 账号管理
+        self.instagram_accounts = []  # 所有Instagram账号
+        self.main_instagram_account = {}  # 主账号
+        self.instagram_accounts_need_count = 1  # 需要获取的Instagram账号数量
+        self.instagram_accounts_last_used = {}  # 所有Instagram账号上次使用时间
+        self.instagram_accounts_cooldown_seconds = 5  # 所有Instagram账号冷却时间
     
     def _load_config(self):
         """加载 Instagram API 配置"""
@@ -92,7 +90,7 @@ class InstagramFetcher(BaseFetcher):
         Returns:
             Tuple[bool, int, str, Dict[str, Any]]: 返回(success, code, msg, profile)格式
         """
-        if not await self.select_instagram_account():
+        if not await self._set_instagram_accounts():
             self.logger.error("未选择Instagram账号，无法获取用户资料")
             return False, 500, "未选择Instagram账号", {}
         
@@ -105,16 +103,7 @@ class InstagramFetcher(BaseFetcher):
                 return False, 500, "API端点未配置", {}
             
             # 准备 API 请求头
-            headers = {
-                "User-Agent": self.user_agent,
-                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-                "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8,zh-TW;q=0.7",
-                "Connection": "keep-alive",
-                "Content-Type": "application/x-www-form-urlencoded",
-                "x-ig-app-id": "936619743392459",
-                "x-csrftoken": self.selected_instagram_account.get('csrfToken', ''),
-                "cookie": self.selected_instagram_account.get('cookie', ''),
-            }
+            headers = self._get_headers()
             
             # 准备请求参数
             variables = {
@@ -189,14 +178,7 @@ class InstagramFetcher(BaseFetcher):
             url = f"https://www.instagram.com/{username}/"
             
             # 准备请求头
-            headers = {
-                "User-Agent": self.user_agent,
-                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-                "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8,zh-TW;q=0.7",
-                "Connection": "keep-alive",
-                "sec-fetch-mode": "navigate",
-                "cookie": self.selected_instagram_account.get('cookie', ''),
-            }
+            headers = self._get_headers()
             
             # 设置代理
             proxy = None
@@ -305,7 +287,7 @@ class InstagramFetcher(BaseFetcher):
         """
         self.logger.info(f"查找与 {username} 相似的 Instagram 用户，数量: {count}")
 
-        if not await self.select_instagram_account():
+        if not await self._set_instagram_accounts():
             self.logger.error("未选择Instagram账号，无法查找相似用户")
             return (False, "未选择Instagram账号", [])
         
@@ -381,16 +363,7 @@ class InstagramFetcher(BaseFetcher):
                 return []
             
             # 准备 API 请求头
-            headers = {
-                "User-Agent": self.user_agent,
-                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-                "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8,zh-TW;q=0.7",
-                "Connection": "keep-alive",
-                "Content-Type": "application/x-www-form-urlencoded",
-                "x-ig-app-id": "936619743392459",
-                "x-csrftoken": self.selected_instagram_account.get('csrfToken', ''),
-                "cookie": self.selected_instagram_account.get('cookie', ''),
-            }
+            headers = self._get_headers()
             
             # 准备请求参数
             variables = {
@@ -438,82 +411,80 @@ class InstagramFetcher(BaseFetcher):
             self.logger.error(f"获取相似用户失败: {str(e)}")
             return []
 
-    async def _get_instagram_accounts_from_admin_service(self) -> bool:
+    def _get_headers(self, instagram_account: dict = None) -> Dict[str, str]:
+        """获取请求头"""
+        account = instagram_account if instagram_account else self.main_instagram_account
+        return {
+            "User-Agent": self.user_agent,
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+            "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8,zh-TW;q=0.7",
+            "Connection": "keep-alive",
+            "Content-Type": "application/x-www-form-urlencoded",
+            "x-ig-app-id": "936619743392459",
+            "x-csrftoken": account.get('headers', {}).get('x-csrftoken', ''),
+            "cookie": account.get('headers', {}).get('cookie', ''),
+        }
+
+    async def _get_instagram_accounts_from_admin_service(self, count: int = 1) -> list:
         """通过服务发现获取admin-service-http的IP和端口，然后发送POST请求获取Instagram账号
-        
+        Args:
+            count (int): 账号数量，默认为 1
         Returns:
-            bool: 是否成功获取账号
+            list: 账号列表，失败时返回空列表
         """
-        if self.instagram_accounts:
-            return True
-
         try:
-            self.logger.info("正在通过服务发现获取Instagram认证信息...")
-
-            # 使用ServiceDiscovery发送POST请求到admin-service-http
+            self.logger.info(f"正在通过服务发现获取Instagram认证信息... count={count}")
             response = await ServiceDiscovery.post(
-                service_name="admin-service-http",
+                service_name="admin",
                 path="/v1/instagram/accounts/lock",
-                json={}
+                json={"count": count}
             )
-            
-            # 检查响应是否成功
             if response and response.get('accounts', []) and len(response.get('accounts', [])) > 0:
-                self.instagram_accounts = response.get('accounts', [])
-                self.logger.info(f"成功获取Instagram账号, 数量: {len(self.instagram_accounts)}")
-                return True
+                self.logger.info(f"成功获取Instagram账号, 数量: {len(response.get('accounts', []))}")
+                return response.get('accounts', [])
             else:
                 self.logger.error(f"获取Instagram账号失败: 响应格式不正确")
-                return False
-                
+                return []
         except Exception as e:
             self.logger.error(f"获取Instagram账号时发生错误: {str(e)}")
             import traceback
             self.logger.error(traceback.format_exc())
-            return False
+            return []
 
-    async def select_instagram_account(self) -> bool:
-        """选择一个Instagram账号
-        
-        Returns:
-            bool: 是否成功选择账号
-        """
+    async def _set_instagram_accounts(self) -> bool:
+        """设置Instagram账号"""
         try:
-            # 如果已经有认证信息，则不需要重新获取
-            if self.selected_instagram_account:
-                # self.logger.info("已有Instagram账号，无需重新获取")
-                return True
-                
-            # 从admin-service-http获取认证信息
-            await self._get_instagram_accounts_from_admin_service()
             if self.instagram_accounts:
-                self.selected_instagram_account = self.instagram_accounts[0]
-                self.logger.info(f"成功选择Instagram账号: {self.selected_instagram_account.get('username')}")
+                return True
+            self.instagram_accounts = await self._get_instagram_accounts_from_admin_service(self.instagram_accounts_need_count)
+            if self.instagram_accounts:
+                self.main_instagram_account = self.instagram_accounts[0]
+                self.logger.info(f"成功获取Instagram账号, 数量: {len(self.instagram_accounts)}, 主账号: {self.main_instagram_account.get('username', '')}")
                 return True
             else:
                 self.logger.error("获取Instagram账号失败")
                 return False
-                
         except Exception as e:
-            self.logger.error(f"选择Instagram账号时发生错误: {str(e)}")
+            self.logger.error(f"设置Instagram账号时发生错误: {str(e)}")
             import traceback
             self.logger.error(traceback.format_exc())
             return False
-        
+
     async def _clear_instagram_accounts(self) -> bool:
         """清理Instagram账号"""
         if not self.instagram_accounts:
             return True
         try:
             ids = [account.get("id") for account in self.instagram_accounts]
-            # 使用ServiceDiscovery发送POST请求到admin-service-http
             response = await ServiceDiscovery.post(
-                service_name="admin-service-http",
+                service_name="admin",
                 path="/v1/instagram/accounts/unlock",
                 json={"ids": ids}
             )
             if response.get("success", False):
                 self.instagram_accounts = []
+                self.main_instagram_account = {}
+                self.instagram_accounts_last_used = {}
                 self.logger.info("成功清理Instagram账号")
                 return True
             else:
@@ -529,9 +500,8 @@ class InstagramFetcher(BaseFetcher):
     async def cleanup(self):
         """清理资源"""
         await super().cleanup()
-        # self.logger.info("清理Instagram账号...")
-        # await self._clear_instagram_accounts()
-        self.selected_instagram_account = {}
+        await self._clear_instagram_accounts()
+        self.main_instagram_account = {}
         self.logger.info("资源清理完成") 
 
     async def find_users_by_search(self, query: str, count: int = 20) -> Tuple[bool, str, List[Dict[str, Any]]]:
@@ -546,7 +516,7 @@ class InstagramFetcher(BaseFetcher):
         """
         self.logger.info(f"搜索用户: {query}, 数量: {count}")
         
-        if not await self.select_instagram_account():
+        if not await self._set_instagram_accounts():
             self.logger.error("未选择Instagram账号，无法搜索用户")
             return (False, "未选择Instagram账号", []) 
         
@@ -632,14 +602,7 @@ class InstagramFetcher(BaseFetcher):
                 return []
             
             # 准备 API 请求头
-            headers = {
-                "User-Agent": self.user_agent,
-                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-                "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8,zh-TW;q=0.7",
-                "x-ig-app-id": "936619743392459",
-                "x-csrftoken": self.selected_instagram_account.get('csrfToken', ''),
-                "cookie": self.selected_instagram_account.get('cookie', ''),
-            }
+            headers = self._get_headers()
             
             # 准备请求参数
             params = {
@@ -714,14 +677,7 @@ class InstagramFetcher(BaseFetcher):
                 self.logger.error("无法获取 user_reels API 端点")
                 return False, 500, {"reels": [], "next_cursor": None}
 
-            headers = {
-                "User-Agent": self.user_agent,
-                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-                "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8,zh-TW;q=0.7",
-                "x-ig-app-id": "936619743392459",
-                "x-csrftoken": self.selected_instagram_account.get('csrfToken', ''),
-                "cookie": self.selected_instagram_account.get('cookie', ''),
-            }
+            headers = self._get_headers(instagram_account)
 
             variables = {
                 "data": {
@@ -797,10 +753,10 @@ class InstagramFetcher(BaseFetcher):
             Tuple[bool, int, str, List[Any]]: (是否成功, 状态码, 消息, Reels列表)
         """
         try:
-            if not await self.select_instagram_account():
+            if not await self._set_instagram_accounts():
                 return False, 500, "未获取到Instagram账号", []
             if not instagram_account:
-                instagram_account = self.selected_instagram_account
+                instagram_account = self.main_instagram_account
 
             if not uid:
                 success, msg, uid = await self.fetch_user_profile_id(username)
