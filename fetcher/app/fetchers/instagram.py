@@ -5,6 +5,7 @@ import re
 import json
 import random
 import time
+import math
 from app.fetchers.base import BaseFetcher
 from playwright.async_api import Page
 import urllib.parse
@@ -84,12 +85,16 @@ class InstagramFetcher(BaseFetcher):
             return match.group(0)
         return ""
 
-    async def fetch_user_profile(self, uid: str) -> Dict[str, Any]:
-        """获取用户主页信息"""
-        self.logger.info(f"开始获取 Instagram 用户资料, uid: {uid}")
+    async def fetch_user_profile(self, uid: str) -> Tuple[bool, int, str, Dict[str, Any]]:
+        """获取用户主页信息
+        Args:
+            uid (str): 用户ID
+        Returns:
+            Tuple[bool, int, str, Dict[str, Any]]: 返回(success, code, msg, profile)格式
+        """
         if not await self.select_instagram_account():
             self.logger.error("未选择Instagram账号，无法获取用户资料")
-            return {}
+            return False, 500, "未选择Instagram账号", {}
         
         try:    
              # 构建请求 URL
@@ -97,7 +102,7 @@ class InstagramFetcher(BaseFetcher):
             doc_id = self.api_endpoints.get("user_by_uid", {}).get("doc_id")
             if not url:
                 self.logger.error("无法获取 user_by_uid API 端点")
-                return (False, "API端点未配置", [])
+                return False, 500, "API端点未配置", {}
             
             # 准备 API 请求头
             headers = {
@@ -142,7 +147,7 @@ class InstagramFetcher(BaseFetcher):
             user_data = response_data.get("data", {}).get("user", {})
             if not user_data:
                 self.logger.error("无法获取用户资料")
-                return {}
+                return False, 404, "未获取到用户资料", {}
             
             # 获取用户简介
             bio = user_data.get("biography", "")
@@ -163,19 +168,17 @@ class InstagramFetcher(BaseFetcher):
                 "email_in_bio": email_in_bio,
                 "url": f"https://www.instagram.com/{user_data.get('username', '')}"
             }
-            
-            self.logger.info(f"成功获取用户资料, uid: {uid}, username: {profile_data['username']}")
-            return profile_data
+            return True, 200, "success", profile_data
             
         except asyncio.TimeoutError:
             self.logger.error(f"获取用户资料请求超时")
-            return {}
+            return False, 504, "请求超时", {}
         except aiohttp.ClientError as e:
             self.logger.error(f"API请求错误: {str(e)}")
-            return {}
+            return False, 502, f"API请求错误: {str(e)}", {}
         except Exception as e:
             self.logger.error(f"获取用户资料失败: {str(e)}")
-            return {}
+            return False, 500, f"获取用户资料失败: {str(e)}", {}
         
     async def fetch_user_profile_id(self, username: str) -> Tuple[bool, str, str]:
         """获取用户资料ID"""
@@ -290,7 +293,7 @@ class InstagramFetcher(BaseFetcher):
         return None
 
     async def find_similar_users(self, username: str, count: int = 20, uid: str = None) -> Tuple[bool, str, List[Dict[str, Any]]]:
-        """找到与指定用户相似的用户
+        """找到与指定用户相似的用户（包括二度关系用户，第一层不直接返回，始终尝试补全第二层）
         
         Args:
             username (str): 用户名
@@ -316,62 +319,46 @@ class InstagramFetcher(BaseFetcher):
                 self.logger.error(f"获取用户ID失败: {str(e)}")
                 return (False, str(e), [])
         
-        self.logger.info(f"获取用户ID成功: {uid}")
-        
+        result_users = []
         try:
-            # 用字典来存储用户ID及其出现次数，用于去重和排序
-            user_frequency_map = {}
+            # 用集合来存储已处理的用户ID，用于去重
+            processed_uids = set()
             all_similar_users = []
             
             # 步骤1: 获取第一层相似用户
             first_level_users = await self._find_similar_users_by_uid(uid)
             self.logger.info(f"获取到第一层相似用户: {len(first_level_users)} 个")
+            processed_uids = set(user["uid"] for user in first_level_users)
+            all_similar_users = first_level_users
 
-            if len(first_level_users) >= count:
-                all_similar_users = first_level_users[:count]
-                return (True, "success", all_similar_users)
-            
-            # 添加第一层用户并记录其 UID
-            for user in first_level_users:
-                user_uid = user["uid"]
-                if user_uid not in user_frequency_map:
-                    user_frequency_map[user_uid] = 1
-                    all_similar_users.append(user)
-                else:
-                    user_frequency_map[user_uid] += 1
-            
             # 步骤2: 获取第二层相似用户
             second_level_users = []
-            
-            # 顺序处理每个第一层用户
-            for first_level_user in first_level_users:
-                if first_level_user["uid"]:
-                    # 顺序请求每个用户的相似用户
-                    users = await self._find_similar_users_by_uid(first_level_user["uid"])
-                    self.logger.info(f"获取到{first_level_user['username']}第二层相似用户: {len(users)} 个")
-                    if not isinstance(users, list) or not users:  # 确保结果是有效的
-                        continue
-                    
-                    # 更新用户频率并添加到第二层用户列表
-                    for user in users:
-                        user_uid = user["uid"]
-                        if user_uid not in user_frequency_map:
-                            user_frequency_map[user_uid] = 1
-                            second_level_users.append(user)
-                        else:
-                            user_frequency_map[user_uid] += 1
+            if len(first_level_users) < count:
+                for first_level_user in first_level_users:
+                    if first_level_user["uid"]:
+                        users = await self._find_similar_users_by_uid(first_level_user["uid"])
+                        self.logger.info(f"获取到{first_level_user['username']}第二层相似用户: {len(users)} 个")
+                        if not isinstance(users, list) or not users:
+                            continue
+                        for user in users:
+                            user_uid = user["uid"]
+                            if user_uid and user_uid not in processed_uids:
+                                processed_uids.add(user_uid)
+                                all_similar_users.append(user)
+                        if len(all_similar_users) >= count:
+                            break
+                        await asyncio.sleep(random.uniform(1, 3))
 
-                    if len(user_frequency_map) >= count:
-                        break
-                    
-                    await asyncio.sleep(random.uniform(1, 3))
-            
-            # 根据用户出现频率排序
-            sorted_users = first_level_users + sorted(second_level_users, key=lambda x: user_frequency_map.get(x["uid"], 0), reverse=True)
-            
-            # 确保返回数量不超过请求数量
-            return (True, "success", sorted_users[:count])
-            
+            result_users = all_similar_users[:count]
+            for user in result_users:
+                success, code, msg, reels = await self.fetch_user_reels(user["username"], 15, user["uid"])
+                if not success or not reels:
+                    self.logger.error(f"获取用户 {user.get('username')} reels失败, code: {code}, msg: {msg}, reels count: {len(reels)}")
+                    user["avg_play_last_10_reels"] = None
+                else:
+                    user["avg_play_last_10_reels"] = await self._calculate_avg_views(reels)
+            return (True, "success", result_users)
+        
         except Exception as e:
             self.logger.error(f"查找相似用户失败: {str(e)}")
             return (False, str(e), [])
@@ -438,8 +425,9 @@ class InstagramFetcher(BaseFetcher):
             
             for user in users:
                 uid = user.get("pk", "")
-                user_data = await self.fetch_user_profile(uid)
-                if not user_data:
+                success, code, msg, user_data = await self.fetch_user_profile(uid)
+                if not success or not user_data:
+                    self.logger.error(f"获取用户 {user.get('username')} 资料失败, code: {code}, msg: {msg}")
                     continue
                 similar_users.append(user_data)
                 # await asyncio.sleep(1)
@@ -562,6 +550,7 @@ class InstagramFetcher(BaseFetcher):
             self.logger.error("未选择Instagram账号，无法搜索用户")
             return (False, "未选择Instagram账号", []) 
         
+        result_users = []
         try:
             # 存储所有获取的用户
             all_users = []
@@ -607,7 +596,15 @@ class InstagramFetcher(BaseFetcher):
                 await self._random_delay(2, 5)
             
             # 确保返回数量不超过请求数量
-            return (True, "success", all_users[:count])
+            result_users = all_users[:count]
+            for user in result_users:
+                success, code, msg, reels = await self.fetch_user_reels(user["username"], 15, user["uid"])
+                if not success or not reels:
+                    self.logger.error(f"获取用户 {user.get('username')} reels失败, code: {code}, msg: {msg}, reels count: {len(reels)}")
+                    user["avg_play_last_10_reels"] = None
+                else:
+                    user["avg_play_last_10_reels"] = await self._calculate_avg_views(reels)
+            return (True, "success", result_users)
             
         except Exception as e:
             error_msg = f"搜索用户失败: {str(e)}"
@@ -623,7 +620,7 @@ class InstagramFetcher(BaseFetcher):
             query (str): 搜索关键词
             rank_token (str, optional): 排名令牌
             next_max_id (str, optional): 下一页ID
-            
+        
         Returns:
             Tuple[List[Dict[str, Any]], str, str]: 用户列表，排名令牌，下一页ID
         """
@@ -685,10 +682,10 @@ class InstagramFetcher(BaseFetcher):
                         continue
                 
                     uid = user.get('pk')
-                    user_data = await self.fetch_user_profile(uid)
-                    if not user_data:
+                    success, code, msg, user_data = await self.fetch_user_profile(uid)
+                    if not success or not user_data:
+                        self.logger.error(f"获取用户 {user.get('username')} 资料失败, code: {code}, msg: {msg}")
                         continue
-
                     users.append(user_data)
 
             return users, rank_token, next_max_id
@@ -773,9 +770,9 @@ class InstagramFetcher(BaseFetcher):
                 reel = {
                     "id": media.get("id"),
                     "shortcode": media.get("code"),
-                    "like_count": media.get("like_count", 0),
-                    "comment_count": media.get("comment_count", 0),
-                    "play_count": media.get("play_count", 0),
+                    "like_count": media.get("like_count") or 0,
+                    "comment_count": media.get("comment_count") or 0,
+                    "play_count": media.get("play_count") or 0,
                     "is_pinned": True if uid in clips_tab_pinned_user_ids else False,
                     "url": f"https://www.instagram.com/reel/{media.get('code', '')}/"
                 }
@@ -833,3 +830,21 @@ class InstagramFetcher(BaseFetcher):
             import traceback
             self.logger.error(traceback.format_exc())
             return False, 500, f"获取Reels失败: {str(e)}", []
+
+    async def _calculate_avg_views(self, reels: List[Dict[str, Any]], limit: int = 10) -> float:
+        """计算前limit个非置顶Reels的平均播放量（向上取整）
+        Args:
+            reels (List[Dict[str, Any]]): Reels列表
+            limit (int): 要计算的Reels数量限制，默认为10
+        Returns:
+            float: 平均播放量（向上取整），如果没有则返回0
+        """
+        if not reels:
+            return 0
+        # 过滤掉置顶Reels并获取前N条
+        non_pinned_reels = [reel for reel in reels if not reel.get('is_pinned', False)][:limit]
+        if not non_pinned_reels:
+            return 0
+        total_views = sum((reel.get('play_count') or 0) for reel in non_pinned_reels)
+        avg_views = total_views / len(non_pinned_reels)
+        return math.ceil(avg_views)
