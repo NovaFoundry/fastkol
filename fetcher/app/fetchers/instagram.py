@@ -30,8 +30,8 @@ class InstagramFetcher(BaseFetcher):
         # 初始化时获取Instagram认证信息
         self.instagram_accounts = [
             {
-                'csrfToken': 'S57bd5fAVgobtU6JsSsOl8Vo0d26Pg2u',
-                'cookie': 'ig_did=994E101C-FE30-4B8C-AD30-ADD4BA10D14F; datr=gdjBZ3Mn3TZ3vlglZrcONNZC; mid=Z8HYgwAEAAFG1OLdoKK1W3qAE5-F; ig_nrcb=1; ps_l=1; ps_n=1; csrftoken=S57bd5fAVgobtU6JsSsOl8Vo0d26Pg2u; ds_user_id=74544247599; sessionid=74544247599%3AAIG7IzRIwOCa9o%3A24%3AAYfGnqcxAyqg6qiMTUwQ61qCgj1_2BFKqMwkPjynlQ; wd=711x671; rur="CCO\05474544247599\0541779186799:01f71bcf1bd6d008987c94b42a655b6bce4383dedd9b93c318d339dbd7ca6fa54c073c1b',
+                'csrfToken': 'W8zDBxk4B22zqlngYlYfnbnftuahOJDc',
+                'cookie': 'ig_did=994E101C-FE30-4B8C-AD30-ADD4BA10D14F; datr=gdjBZ3Mn3TZ3vlglZrcONNZC; mid=Z8HYgwAEAAFG1OLdoKK1W3qAE5-F; ig_nrcb=1; ps_l=1; ps_n=1; csrftoken=W8zDBxk4B22zqlngYlYfnbnftuahOJDc; ds_user_id=3002998921; sessionid=3002998921%3ARtrjJcp3XoUmT6%3A13%3AAYcP9MLEAn4D5uOpijJH2PWu2e-5tRQ5j-2h1HCwAw; wd=854x672; rur=\"HIL\\0543002998921\\0541780472676:01fec3f6662094555a2aba2f3147564a639166ba33928bda5a532df89a5fe2538633373f\"',
             }
         ]  # 所有Instagram账号
         self.selected_instagram_account = self.instagram_accounts[0]
@@ -698,3 +698,138 @@ class InstagramFetcher(BaseFetcher):
             import traceback
             self.logger.error(traceback.format_exc())
             return []
+        
+    async def _fetch_user_reels_by_uid(self, uid: str, count: int, cursor: str = None, instagram_account: dict = None) -> Tuple[bool, int, Dict[str, Any]]:
+        """通过用户ID获取Reels列表
+        
+        Args:
+            uid (str): 用户ID
+            count (int): 要获取的Reels数量
+            cursor (str, optional): 分页游标
+            instagram_account (dict, optional): 指定Instagram账号
+        Returns:
+            Tuple[bool, int, Dict[str, Any]]: (是否成功, 状态码, 包含Reels列表和分页信息的字典)
+        """
+        try:
+            url = self.api_endpoints.get("user_reels", {}).get("url")
+            doc_id = self.api_endpoints.get("user_reels", {}).get("doc_id")
+            if not url or not doc_id:
+                self.logger.error("无法获取 user_reels API 端点")
+                return False, 500, {"reels": [], "next_cursor": None}
+
+            headers = {
+                "User-Agent": self.user_agent,
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+                "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8,zh-TW;q=0.7",
+                "x-ig-app-id": "936619743392459",
+                "x-csrftoken": self.selected_instagram_account.get('csrfToken', ''),
+                "cookie": self.selected_instagram_account.get('cookie', ''),
+            }
+
+            variables = {
+                "data": {
+                    "include_feed_video": True,
+                    "page_size": min(12, count),
+                    "target_user_id": uid
+                }
+            }
+            if cursor:
+                variables["after"] = cursor
+                variables["before"] = None
+                variables["first"] = 4
+                variables["last"] = None
+
+            form_data = {
+                "doc_id": doc_id,
+                "variables": json.dumps(variables)
+            }
+
+            proxy = self.proxy_url if self.proxy_enabled and self.proxy_url else None
+
+            timeout = aiohttp.ClientTimeout(total=30)
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                request_kwargs = {"headers": headers, "data": form_data}
+                if proxy:
+                    request_kwargs["proxy"] = proxy
+                async with session.post(url, **request_kwargs) as response:
+                    if response.status != 200:
+                        error_text = await response.text()
+                        self.logger.error(f"Instagram API 返回非 200 状态码: {response.status}, 内容: {error_text}")
+                        return False, response.status, {"reels": [], "next_cursor": None}
+                    response_data = await response.json()
+
+            reels = []
+            next_cursor = None
+            # 解析结构，兼容不同返回格式
+            edges = response_data.get("data", {}).get("xdt_api__v1__clips__user__connection_v2", {}).get("edges", [])
+            page_info = response_data.get("data", {}).get("xdt_api__v1__clips__user__connection_v2", {}).get("page_info", {})
+            next_cursor = page_info.get("end_cursor") if page_info.get("has_next_page") else None
+
+            for edge in edges:
+                media = edge.get("node", {}).get('media', {})
+                if not media:
+                    continue
+                clips_tab_pinned_user_ids = media.get("clips_tab_pinned_user_ids", [])
+                reel = {
+                    "id": media.get("id"),
+                    "shortcode": media.get("code"),
+                    "like_count": media.get("like_count", 0),
+                    "comment_count": media.get("comment_count", 0),
+                    "play_count": media.get("play_count", 0),
+                    "is_pinned": True if uid in clips_tab_pinned_user_ids else False,
+                    "url": f"https://www.instagram.com/reel/{media.get('code', '')}/"
+                }
+                reels.append(reel)
+
+            return True, 200, {"reels": reels, "next_cursor": next_cursor}
+        except Exception as e:
+            self.logger.error(f"获取用户Reels失败: {str(e)}")
+            import traceback
+            self.logger.error(traceback.format_exc())
+            return False, 500, {"reels": [], "next_cursor": None}
+
+    async def fetch_user_reels(self, username: str, count: int = 20, uid: str = None, instagram_account: dict = None) -> Tuple[bool, int, str, List[Any]]:
+        """获取用户的Reels列表
+        
+        Args:
+            username (str): 用户名
+            count (int): 要获取的Reels数量
+            uid (str, optional): 用户ID
+            instagram_account (dict, optional): 指定Instagram账号
+        Returns:
+            Tuple[bool, int, str, List[Any]]: (是否成功, 状态码, 消息, Reels列表)
+        """
+        try:
+            if not await self.select_instagram_account():
+                return False, 500, "未获取到Instagram账号", []
+            if not instagram_account:
+                instagram_account = self.selected_instagram_account
+
+            if not uid:
+                success, msg, uid = await self.fetch_user_profile_id(username)
+                if not success or not uid:
+                    return False, 404, "无法获取用户uid", []
+
+            all_reels = []
+            next_cursor = None
+
+            while len(all_reels) < count:
+                success, code, result = await self._fetch_user_reels_by_uid(uid, 12, next_cursor, instagram_account)
+                self.logger.info(f"获取用户 {username} 的 Reels，cursor: {next_cursor}, 数量: {len(result.get('reels', []))}")
+                if not success:
+                    return False, code, f"获取Reels失败: HTTP {code}", all_reels 
+
+                all_reels.extend(result.get("reels", []))
+                next_cursor = result.get("next_cursor")
+
+                if not next_cursor or len(all_reels) >= count:
+                    break
+
+                await self._random_delay(1, 3)
+
+            return True, 200, "success", all_reels[:count]
+        except Exception as e:
+            self.logger.error(f"获取用户Reels失败: {str(e)}")
+            import traceback
+            self.logger.error(traceback.format_exc())
+            return False, 500, f"获取Reels失败: {str(e)}", []
