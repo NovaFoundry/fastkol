@@ -165,6 +165,52 @@ def update_twitter_account_status(account_id: str, username: str, status: str):
         logger.error(f"更新账号状态任务处理失败: {str(e)}")
         return {"status": "error", "error": str(e)}
 
+@app.task(name='app.celery_app.update_instagram_account_status')
+def update_instagram_account_status(account_id: str, username: str, status: str):
+    """更新 Instagram 账号状态
+    
+    Args:
+        account_id (str): 账号ID
+        username (str): Instagram 用户名
+        status (str): 账号状态，可选值：
+            - 'normal': 正常状态
+            - 'disabled': 账号被禁用
+    """
+    try:
+        logger.info(f"更新 Instagram 账号 id: {account_id}, username: {username} 状态为: {status}")
+        
+        async def async_process():
+            try:
+                # 调用 admin 服务更新账号状态
+                response = await ServiceDiscovery.put(
+                    service_name="admin",
+                    path=f"/v1/instagram/accounts/{account_id}",
+                    json={
+                        "status": status
+                    }
+                )
+                
+                if response:
+                    logger.info(f"成功更新 Instagram 账号 id: {account_id}, username: {username} 状态为 {status}")
+                    return {"status": "success"}
+                else:
+                    logger.error(f"更新 Instagram 账号状态失败: {response}")
+                    return {"status": "failed", "error": "更新账号状态失败"}
+                
+            except aiohttp.ClientResponseError as e:
+                error_msg = f"HTTP错误: {e.status} - {e.message}"
+                logger.error(f"更新 Instagram 账号状态失败: {error_msg}")
+                return {"status": "failed", "error": error_msg}
+            except Exception as e:
+                logger.error(f"更新 Instagram 账号状态时发生错误: {str(e)}")
+                return {"status": "error", "error": str(e)}
+        
+        return asyncio.run(async_process())
+    
+    except Exception as e:
+        logger.error(f"更新 Instagram 账号状态任务处理失败: {str(e)}")
+        return {"status": "error", "error": str(e)}
+
 async def run_similar_fetcher(platform, params) -> Tuple[bool, str, List[Dict[str, Any]]]:
     """根据平台选择合适的爬虫并运行相似用户查找"""
     fetcher = None

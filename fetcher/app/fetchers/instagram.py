@@ -93,7 +93,6 @@ class InstagramFetcher(BaseFetcher):
         if not await self._set_instagram_accounts():
             self.logger.error("未选择Instagram账号，无法获取用户资料")
             return False, 500, "未选择Instagram账号", {}
-        
         try:    
              # 构建请求 URL
             url = self.api_endpoints.get("user_by_uid", {}).get("url")
@@ -101,17 +100,11 @@ class InstagramFetcher(BaseFetcher):
             if not url:
                 self.logger.error("无法获取 user_by_uid API 端点")
                 return False, 500, "API端点未配置", {}
-            
-            # 准备 API 请求头
             headers = self._get_headers()
-            
-            # 准备请求参数
             variables = {
                 "id": uid,
                 "render_surface": "PROFILE",
             }
-            
-            # 准备表单数据
             form_data = {
                 "doc_id": doc_id,
                 "variables": json.dumps(variables)
@@ -121,15 +114,25 @@ class InstagramFetcher(BaseFetcher):
             proxy = None
             if self.proxy_enabled and self.proxy_url:
                 proxy = self.proxy_url
-            
-            # 发送请求
             timeout = aiohttp.ClientTimeout(total=30)
             async with aiohttp.ClientSession(timeout=timeout) as session:
                 request_kwargs = {"headers": headers, "data": form_data}
                 if proxy:
                     request_kwargs["proxy"] = proxy
-                
                 async with session.post(url, **request_kwargs) as response:
+                    if self.is_suspended_redirect(response):
+                        self.logger.error(f"请求被重定向到账号挂起页面: {response.url}")
+                        await self.handle_suspended_account()
+                        return False, 403, "账号被挂起", {}
+                    if response.status != 200:
+                        error_text = await response.text()
+                        self.logger.error(f"Instagram API 返回非 200 状态码: {response.status}, 内容: {error_text}")
+                        return False, response.status, f"API返回非200: {response.status}", {}
+                    content_type = response.headers.get("Content-Type", "")
+                    if "application/json" not in content_type:
+                        error_text = await response.text()
+                        self.logger.error(f"返回内容类型不是 JSON: {content_type}")
+                        return False, 500, f"Content-Type错误: {content_type}", {}
                     response_data = await response.json()
             
             # 解析响应数据
@@ -390,6 +393,20 @@ class InstagramFetcher(BaseFetcher):
                     request_kwargs["proxy"] = proxy
                 
                 async with session.post(url, **request_kwargs) as response:
+                    if self.is_suspended_redirect(response):
+                        self.logger.error(f"请求被重定向到账号挂起页面: {response.url}")
+                        await self.handle_suspended_account()
+                        return []
+                    if response.status != 200:
+                        error_text = await response.text()
+                        self.logger.error(f"Instagram API 返回非 200 状态码: {response.status}, 内容: {error_text}")
+                        return []
+                    # 校验 Content-Type
+                    content_type = response.headers.get("Content-Type", "")
+                    if "application/json" not in content_type:
+                        error_text = await response.text()
+                        self.logger.error(f"返回内容类型不是 JSON: {content_type}")
+                        return []
                     response_data = await response.json()
             
             # 解析响应数据
@@ -410,6 +427,10 @@ class InstagramFetcher(BaseFetcher):
         except Exception as e:
             self.logger.error(f"获取相似用户失败: {str(e)}")
             return []
+
+    def is_suspended_redirect(self, response) -> bool:
+        """判断是否被重定向到 Instagram suspended 页面"""
+        return str(response.url).startswith("https://www.instagram.com/accounts/suspended")
 
     def _get_headers(self, instagram_account: dict = None) -> Dict[str, str]:
         """获取请求头"""
@@ -627,6 +648,19 @@ class InstagramFetcher(BaseFetcher):
                     request_kwargs["proxy"] = proxy
                 
                 async with session.get(url, **request_kwargs) as response:
+                    if self.is_suspended_redirect(response):
+                        self.logger.error(f"请求被重定向到账号挂起页面: {response.url}")
+                        await self.handle_suspended_account()
+                        return [], None, None
+                    if response.status != 200:
+                        error_text = await response.text()
+                        self.logger.error(f"Instagram API 返回非 200 状态码: {response.status}, 内容: {error_text}")
+                        return [], None, None
+                    content_type = response.headers.get("Content-Type", "")
+                    if "application/json" not in content_type:
+                        error_text = await response.text()
+                        self.logger.error(f"返回内容类型不是 JSON: {content_type}")
+                        return [], None, None
                     response_data = await response.json()
             
             # 解析响应数据
@@ -705,10 +739,19 @@ class InstagramFetcher(BaseFetcher):
                 if proxy:
                     request_kwargs["proxy"] = proxy
                 async with session.post(url, **request_kwargs) as response:
+                    if self.is_suspended_redirect(response):
+                        self.logger.error(f"请求被重定向到账号挂起页面: {response.url}")
+                        await self.handle_suspended_account()
+                        return False, 403, {"reels": [], "next_cursor": None}
                     if response.status != 200:
                         error_text = await response.text()
                         self.logger.error(f"Instagram API 返回非 200 状态码: {response.status}, 内容: {error_text}")
                         return False, response.status, {"reels": [], "next_cursor": None}
+                    content_type = response.headers.get("Content-Type", "")
+                    if "application/json" not in content_type:
+                        error_text = await response.text()
+                        self.logger.error(f"返回内容类型不是 JSON: {content_type}")
+                        return False, 500, {"reels": [], "next_cursor": None}
                     response_data = await response.json()
 
             reels = []
@@ -804,3 +847,9 @@ class InstagramFetcher(BaseFetcher):
         total_views = sum((reel.get('play_count') or 0) for reel in non_pinned_reels)
         avg_views = total_views / len(non_pinned_reels)
         return math.ceil(avg_views)
+
+    async def handle_suspended_account(self):
+        """处理账号被挂起的情况"""
+        from app.celery_app import update_instagram_account_status
+        update_instagram_account_status.delay(self.main_instagram_account.get("id"), self.main_instagram_account.get("username"), "disabled")
+        self.logger.error(f"账号 {self.main_instagram_account.get('username')} 被挂起，已触发状态更新任务")
