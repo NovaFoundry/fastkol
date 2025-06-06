@@ -395,7 +395,7 @@ class TwitterFetcher(BaseFetcher):
             #                     self.account_rate_limit_count[account_id] = 0
             #                 self.logger.warning(f"使用账号 {twitter_account.get('username')} 获取用户 {user['username']} 的推文失败，错误码: {code}")
             #                 break
-            # return (True, "success", all_similar_users[:count])
+            return (True, "success", all_similar_users[:count])
         except Exception as e:
             self.logger.error(f"查找相似用户失败: {str(e)}")
             return (False, str(e), [])
