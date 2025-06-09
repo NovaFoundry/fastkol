@@ -38,17 +38,27 @@ export default function SimilarPage() {
   const [form] = Form.useForm();
 
   const handleSubmit = async (values: any) => {
+    // 校验最大值大于最小值
+    if (
+      values.followsMin !== undefined && values.followsMin !== '' &&
+      values.followsMax !== undefined && values.followsMax !== '' &&
+      Number(values.followsMax) <= Number(values.followsMin)
+    ) {
+      message.error('最大值必须大于最小值');
+      return;
+    }
     setIsLoading(true);
     try {
-      const response = await fetchTask('/fetch/similar', {
+      const follows: any = {};
+      if (values.followsMin !== undefined && values.followsMin !== '') follows.min = values.followsMin;
+      if (values.followsMax !== undefined && values.followsMax !== '') follows.max = values.followsMax;
+      const payload: any = {
         platform: values.platform,
         username: values.username,
-        count: values.count || 100,
-        follows: {
-          min: 100,
-          max: 1000
-        }
-      });
+        count: values.count || 50
+      };
+      if (Object.keys(follows).length > 0) payload.follows = follows;
+      const response = await fetchTask('/fetch/similar', payload);
       setTaskId(response.task_id);
       setStatus('pending');
       message.success('Task created successfully!');
@@ -119,7 +129,7 @@ export default function SimilarPage() {
               onFinish={handleSubmit}
               layout="vertical"
               requiredMark={false}
-              initialValues={{ count: 100 }}
+              initialValues={{ count: 50, followsMin: 10000 }}
             >
               <Form.Item
                 name="platform"
@@ -167,17 +177,56 @@ export default function SimilarPage() {
                 />
               </Form.Item>
 
+              <Form.Item label="Follows" style={{ marginBottom: 24 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Form.Item
+                    name="followsMin"
+                    noStyle
+                    initialValue={10000}
+                  >
+                    <InputNumber
+                      size="large"
+                      style={{ flex: 1, width: '100%' }}
+                      placeholder="最小值"
+                      min={0}
+                    />
+                  </Form.Item>
+                  <span style={{ margin: '0 8px', whiteSpace: 'nowrap' }}>-</span>
+                  <Form.Item
+                    name="followsMax"
+                    noStyle
+                  >
+                    <InputNumber
+                      size="large"
+                      style={{ flex: 1, width: '100%' }}
+                      placeholder="∞"
+                      min={0}
+                      formatter={(value: number | string | undefined) => {
+                        if (value === undefined || value === null || value === '') return '∞';
+                        return String(value);
+                      }}
+                      parser={(value: string | undefined) => {
+                        if (value === '∞' || value === undefined || value === null || value === '') return '';
+                        return value.replace(/[^\d]/g, '');
+                      }}
+                    />
+                  </Form.Item>
+                </div>
+              </Form.Item>
+
               <Form.Item>
-                <Button
-                  type="primary"
-                  htmlType="submit"
-                  size="large"
-                  icon={<SearchOutlined />}
-                  loading={isLoading}
-                  block
-                >
-                  Find Similar Accounts
-                </Button>
+                <div style={{ marginTop: 24 }}>
+                  <Button
+                    type="primary"
+                    htmlType="submit"
+                    size="large"
+                    icon={<SearchOutlined />}
+                    loading={isLoading}
+                    block
+                  >
+                    Find Similar Accounts
+                  </Button>
+                </div>
               </Form.Item>
             </Form>
           </Space>
