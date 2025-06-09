@@ -27,7 +27,6 @@ class TwitterFetcher(BaseFetcher):
         self._load_config()
         self.page = None
         self.browser = None
-        self.logger = logger  # Ensure logger is properly set
         # 初始化时获取Twitter认证信息
         self.twitter_accounts = []     # 所有Twitter账号
         self.main_twitter_account = {} # 主账号
@@ -320,13 +319,8 @@ class TwitterFetcher(BaseFetcher):
 
             # 如果没有提供 uid，先获取用户资料以获取 uid
             if not uid:
-                self.logger.info(f"未提供 uid，尝试获取用户 {username} 的资料以获取 uid")
-                user_profile = await self.fetch_user_profile(username, twitter_account=self.main_twitter_account)
-                if user_profile and "uid" in user_profile:
-                    uid = user_profile["uid"]
-                    self.logger.info(f"成功获取用户 {username} 的 uid: {uid}")
-                else:
-                    self.logger.warning(f"无法获取用户 {username} 的 uid，将使用默认 uid")
+                uid = await self._fetch_uid_by_username(username, twitter_account=self.main_twitter_account)
+                if not uid:
                     return (False, "无法获取用户 uid", [])
 
             # 用集合来存储已处理的用户ID，用于去重
@@ -442,6 +436,26 @@ class TwitterFetcher(BaseFetcher):
         if match:
             return match.group(0)
         return ""
+
+    async def _fetch_uid_by_username(self, username: str, twitter_account: dict = None) -> Optional[str]:
+        """
+        根据用户名获取用户UID。
+        
+        Args:
+            username (str): 用户名。
+            twitter_account (dict, optional): 推特账号信息，默认为None，此时使用主账号。
+        
+        Returns:
+            Optional[str]: 用户UID，如果获取失败则返回None。
+        """
+        self.logger.info(f"尝试获取用户 {username} 的 uid")
+        user_profile = await self.fetch_user_profile(username, twitter_account=twitter_account)
+        if user_profile and "uid" in user_profile:
+            self.logger.info(f"成功获取用户 {username} 的 uid: {user_profile['uid']}")
+            return user_profile["uid"]
+        else:
+            self.logger.warning(f"无法获取用户 {username} 的 uid")
+            return None
 
     async def _find_similar_users_by_uid(self, uid: str, twitter_account) -> List[Dict[str, Any]]:
         """通过用户ID获取相似用户
@@ -709,17 +723,24 @@ class TwitterFetcher(BaseFetcher):
             self.logger.error(traceback.format_exc())
             return False, 500, {"tweets": [], "next_cursor": None}
 
-    async def fetch_user_tweets(self, username: str, count: int = 20, uid: str = None, twitter_account: Dict[str, Any] = None) -> Tuple[bool, int, str, List[Any]]:
-        """获取用户的推文列表
+    async def fetch_user_tweets(self, username: str, count: int = 20, uid: str = None, twitter_account: Dict[str, Any] = None, channel: str = None) -> Tuple[bool, int, str, List[Any]]:
+        """获取用户的推文列表，支持可切换渠道
         
         Args:
             username (str): 用户名
             count (int): 要获取的推文数量）
             uid (str, optional): 用户ID，如果提供则使用此ID获取推文
             twitter_account (dict, optional): 指定推特账号
+            channel (str, optional): 指定渠道
         Returns:
             Tuple[bool, int, str, List[Any]]: (是否成功, 状态码, 消息, 推文列表)
         """
+        if channel == "rapid_twitter241":
+            from app.fetchers.twitter.strategies.factory import get_fetch_user_tweets_strategy
+            strategy = get_fetch_user_tweets_strategy(channel, twitter_fetcher=self)
+            if strategy:
+                return await strategy.fetch_user_tweets(username, count, uid, twitter_account)
+        # 原有实现
         try:
             ok, _ = await self._set_twitter_accounts()
             if not ok or not self.twitter_accounts:
@@ -731,12 +752,8 @@ class TwitterFetcher(BaseFetcher):
 
             # 如果没有提供 uid，先获取用户资料以获取 uid
             if not uid:
-                self.logger.info(f"未提供 uid，尝试获取用户 {username} 的资料以获取 uid")
-                user_profile = await self.fetch_user_profile(username, twitter_account)
-                if user_profile and "uid" in user_profile:
-                    uid = user_profile["uid"]
-                    self.logger.info(f"成功获取用户 {username} 的 uid: {uid}")
-                else:
+                uid = await self._fetch_uid_by_username(username, twitter_account)
+                if not uid:
                     self.logger.warning(f"无法获取用户 {username} 的 uid，将使用默认方式获取推文")
                     return False, 404, "无法获取用户uid", []
 

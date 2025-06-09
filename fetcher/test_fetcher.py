@@ -52,7 +52,7 @@ async def test_fetcher(platform, action, params):
             count = params.get("count", 50)
             uid = params.get("uid")
             logger.info(f"获取用户推文: {username}, 数量: {count}, uid: {uid}")
-            result = await fetcher.fetch_user_tweets(username, count, uid=uid)
+            result = await fetcher.fetch_user_tweets(username, count, uid=uid, channel="rapid_twitter241")
             # 打印获取到的推文数量
             logger.info(f"成功获取 {len(result)} 条推文")
         elif action == "fetch_user_reels":
@@ -79,11 +79,11 @@ async def test_fetcher(platform, action, params):
 
 if __name__ == "__main__":
     # 示例: 测试 Twitter 爬虫
-    platform = "instagram"
-    action = "fetch_user_reels"  # 修改为测试搜索用户
+    platform = "twitter"
+    action = "fetch_user_tweets"  # 修改为测试搜索用户
     params = {
         # "uid": "64325658281",
-        "username": "ziyou77777",
+        "username": "deedydas",
         "count": 20  # 要获取的用户数量
     }
     
