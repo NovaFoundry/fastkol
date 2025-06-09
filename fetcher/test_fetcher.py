@@ -4,7 +4,7 @@ import sys
 import logging
 import json
 import traceback
-from app.fetchers.twitter import TwitterFetcher
+from app.fetchers.twitter.twitter_v2 import TwitterFetcher
 from app.fetchers.instagram import InstagramFetcher
 # 添加项目根目录到 Python 路径
 current_dir = os.path.abspath(os.path.dirname(__file__))
@@ -52,9 +52,20 @@ async def test_fetcher(platform, action, params):
             count = params.get("count", 50)
             uid = params.get("uid")
             logger.info(f"获取用户推文: {username}, 数量: {count}, uid: {uid}")
-            result = await fetcher.fetch_user_tweets(username, count, uid=uid, channel="rapid_twitter241")
+            _, _, _, pinned_tweets, normal_tweets = await fetcher.fetch_user_tweets(username=username, uid=uid)
             # 打印获取到的推文数量
-            logger.info(f"成功获取 {len(result)} 条推文")
+            logger.info(f"成功获取 {len(pinned_tweets)} 条置顶推文")
+            logger.info(f"成功获取 {len(normal_tweets)} 条普通推文")
+            result = {
+                "pinned_tweets": pinned_tweets,
+                "normal_tweets": normal_tweets
+            }
+        elif action == "fetch_user_followings":
+            username = params.get("username")
+            count = params.get("count", 70)
+            uid = params.get("uid")
+            logger.info(f"获取用户关注: {username}, 数量: {count}, uid: {uid}")
+            _, _, _, result = await fetcher.fetch_user_followings(username=username, uid=uid)
         elif action == "fetch_user_reels":
             username = params.get("username")
             count = params.get("count", 20)
@@ -80,7 +91,7 @@ async def test_fetcher(platform, action, params):
 if __name__ == "__main__":
     # 示例: 测试 Twitter 爬虫
     platform = "twitter"
-    action = "fetch_user_tweets"  # 修改为测试搜索用户
+    action = "fetch_user_followings"  # 修改为测试搜索用户
     params = {
         # "uid": "64325658281",
         "username": "deedydas",

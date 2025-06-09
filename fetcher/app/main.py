@@ -134,7 +134,7 @@ class FetchSimilarRequest(BaseModel):
     platform: str = Field(..., description="平台名称，例如 'twitter'")
     username: str = Field(..., description="用户名")
     uid: Optional[str] = Field(None, description="用户ID")
-    count: int = Field(20, description="返回结果数量")
+    count: int = Field(50, description="返回结果数量")
     follows: Optional[FollowsFilter] = Field(None, description="关注者数量筛选")
     
     @field_validator('platform')

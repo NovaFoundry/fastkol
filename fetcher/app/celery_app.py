@@ -6,7 +6,7 @@ import asyncio
 import nest_asyncio
 from typing import Tuple, List, Dict, Any
 from app.settings import settings
-from app.fetchers.twitter import TwitterFetcher
+from app.fetchers.twitter.twitter_v2 import TwitterFetcher
 from app.fetchers.youtube import YoutubeFetcher
 from app.fetchers.instagram import InstagramFetcher
 from app.fetchers.tiktok import TiktokFetcher

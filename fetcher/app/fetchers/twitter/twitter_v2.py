@@ -17,6 +17,13 @@ from app.settings import settings
 
 logger = logging.getLogger(__name__)
 
+# =====================
+# Channel 常量区
+# =====================
+CHANNEL_RAPID_TWITTER241 = "rapid_twitter241"
+# 预留：后续可继续添加其它渠道
+# CHANNEL_XXX = "xxx"
+
 class TwitterFetcher(BaseFetcher):
     def __init__(self):
         super().__init__()
@@ -25,8 +32,6 @@ class TwitterFetcher(BaseFetcher):
         self.user_agent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1.1 Safari/605.1.15"
         # 加载 API 配置
         self._load_config()
-        self.page = None
-        self.browser = None
         # 初始化时获取Twitter认证信息
         self.twitter_accounts = []     # 所有Twitter账号
         self.main_twitter_account = {} # 主账号
@@ -42,6 +47,8 @@ class TwitterFetcher(BaseFetcher):
         
         # 记录每个账号的连续429错误次数
         self.account_rate_limit_count = {}
+        # 策略对象缓存
+        self._strategy_cache = {}
 
     def _load_config(self):
         """加载 Twitter API 配置"""
@@ -299,6 +306,23 @@ class TwitterFetcher(BaseFetcher):
         else:
             self.logger.warning(f"账号 {twitter_account.get('username')} 第 {self.account_rate_limit_count[account_id]} 次遇到频率限制")
 
+    ## 找到与指定用户相似的用户
+    ## 数据来源
+    ## 1. 系统推荐，第一层相似用户，数量为10，权重1.0
+    ## 2. 系统推荐，第二层相似用户，数量为225，权重0.5
+    ## 3. 用户关注列表，数量为70(1页数据)，权重0.3
+    ## 4. tag搜索获取，数量为50，权重0.2
+
+    ## 数据排序
+    ## 1. 系统推荐，第一层相似用户
+    ## 2. 系统推荐，第二层相似用户
+    ## 3. 内容文本匹配
+    ## 4. bio匹配
+
+    ## 综合得分
+    ## 综合得分 = 来源权重 × (内容相似度 × α + Bio 匹配度 × β + 活跃度 × δ)
+    ## α=0.4, β=0.2, δ=0.2
+    ## 活跃度 = 最近10条推文平均浏览量
     async def find_similar_users(self, username: str, count: int = 20, uid: str = None) -> Tuple[bool, str, List[Dict[str, Any]]]:
         """找到与指定用户相似的用户,包括二度关系用户
         
@@ -312,7 +336,7 @@ class TwitterFetcher(BaseFetcher):
         """
         self.logger.info(f"查找与 {username} 相似的 Twitter 用户，数量: {count}")
         try:
-            # 获取 similar 专用账号，默认取 10 个
+            # 获取 similar 专用账号
             ok, _ = await self._set_twitter_accounts()
             if not ok or not self.twitter_accounts:
                 return (False, "未获取到twitter账号", [])
@@ -330,65 +354,16 @@ class TwitterFetcher(BaseFetcher):
             # 步骤1: 获取第一层相似用户
             first_level_users = await self._find_similar_users_by_uid(uid, twitter_account=self.main_twitter_account)
             self.logger.info(f"获取到第一层相似用户: {len(first_level_users)} 个")
-            processed_uids = set(user["uid"] for user in first_level_users)
-            all_similar_users = first_level_users
 
             second_level_users = []
-            if len(first_level_users) < count:
-                for first_level_user in first_level_users[:20]:
-                    if first_level_user["uid"]:
-                        users = await self._find_similar_users_by_uid(first_level_user["uid"], twitter_account=self.main_twitter_account)
-                        self.logger.info(f"获取到{first_level_user['username']}第二层相似用户: {len(users)} 个")
-                        if isinstance(users, list):
-                            second_level_users.extend(users)
-                        await asyncio.sleep(random.uniform(0.5, 1.5))
-                # 添加第二层用户(去重)
-                for user in second_level_users:
-                    if user["uid"] not in processed_uids:
-                        processed_uids.add(user["uid"])
-                        all_similar_users.append(user)
+            for first_level_user in first_level_users[:20]:
+                if first_level_user["uid"]:
+                    users = await self._find_similar_users_by_uid(first_level_user["uid"], twitter_account=self.main_twitter_account)
+                    self.logger.info(f"获取到{first_level_user['username']}第二层相似用户: {len(users)} 个")
+                    if isinstance(users, list):
+                        second_level_users.extend(users)
+                    await asyncio.sleep(random.uniform(0.5, 1.5))
 
-            # for user in all_similar_users:
-            #     # 记录已尝试过的账号ID
-            #     tried_account_ids = set()
-            #     success = False
-            #     code = 200
-            #     tweets = []
-                
-            #     while not success:
-            #         twitter_account = await self._get_available_normal_account()
-            #         if not twitter_account:
-            #             self.logger.warning(f"无法获取可用的normal账号，无法获取用户的推文")
-            #             break
-                        
-            #         # 如果这个账号已经尝试过，跳过
-            #         if twitter_account.get("id") in tried_account_ids:
-            #             continue
-                        
-            #         tried_account_ids.add(twitter_account.get("id"))
-            #         success, code, _, tweets = await self.fetch_user_tweets(user["username"], 10, user["uid"], twitter_account)
-                    
-            #         if success:
-            #             # 重置该账号的429错误计数
-            #             account_id = twitter_account.get("id")
-            #             if account_id:
-            #                 self.account_rate_limit_count[account_id] = 0
-            #             # 计算平均浏览量
-            #             user["avg_views_last_10_tweets"] = await self._calculate_avg_views(tweets)
-            #             break
-            #         else:
-            #             # 只有在遇到频率限制时才尝试下一个账号
-            #             if code == 429:
-            #                 # 处理频率限制
-            #                 await self._handle_rate_limit(twitter_account, user["username"])
-            #                 continue
-            #             else:
-            #                 # 其他错误时重置429错误计数
-            #                 account_id = twitter_account.get("id")
-            #                 if account_id:
-            #                     self.account_rate_limit_count[account_id] = 0
-            #                 self.logger.warning(f"使用账号 {twitter_account.get('username')} 获取用户 {user['username']} 的推文失败，错误码: {code}")
-            #                 break
             return (True, "success", all_similar_users[:count])
         except Exception as e:
             self.logger.error(f"查找相似用户失败: {str(e)}")
@@ -454,7 +429,7 @@ class TwitterFetcher(BaseFetcher):
             self.logger.info(f"成功获取用户 {username} 的 uid: {user_profile['uid']}")
             return user_profile["uid"]
         else:
-            self.logger.warning(f"无法获取用户 {username} 的 uid")
+            self.logger.error(f"无法获取用户 {username} 的 uid")
             return None
 
     async def _find_similar_users_by_uid(self, uid: str, twitter_account) -> List[Dict[str, Any]]:
@@ -723,65 +698,65 @@ class TwitterFetcher(BaseFetcher):
             self.logger.error(traceback.format_exc())
             return False, 500, {"tweets": [], "next_cursor": None}
 
-    async def fetch_user_tweets(self, username: str, count: int = 20, uid: str = None, twitter_account: Dict[str, Any] = None, channel: str = None) -> Tuple[bool, int, str, List[Any]]:
+    def get_strategy(self, channel):
+        if channel not in self._strategy_cache:
+            from app.fetchers.twitter.strategies.factory import get_fetch_user_tweets_strategy
+            self._strategy_cache[channel] = get_fetch_user_tweets_strategy(channel, twitter_fetcher=self)
+        return self._strategy_cache[channel]
+
+    async def fetch_user_tweets(self, username: str, uid: str = None, pages: int = 1, channel: str = None) -> Tuple[bool, int, str, List[Any], List[Any]]:
         """获取用户的推文列表，支持可切换渠道
         
         Args:
             username (str): 用户名
-            count (int): 要获取的推文数量）
             uid (str, optional): 用户ID，如果提供则使用此ID获取推文
-            twitter_account (dict, optional): 指定推特账号
+            pages (int, optional): 要获取的页数
             channel (str, optional): 指定渠道
         Returns:
-            Tuple[bool, int, str, List[Any]]: (是否成功, 状态码, 消息, 推文列表)
+            Tuple[bool, int, str, List[Any], List[Any]]: (是否成功, 状态码, 消息, 置顶推文列表, 普通推文列表)
         """
-        if channel == "rapid_twitter241":
-            from app.fetchers.twitter.strategies.factory import get_fetch_user_tweets_strategy
-            strategy = get_fetch_user_tweets_strategy(channel, twitter_fetcher=self)
-            if strategy:
-                return await strategy.fetch_user_tweets(username, count, uid, twitter_account)
-        # 原有实现
+        pinned_tweets = []
+        normal_tweets = []
+        if not channel:
+            channel = CHANNEL_RAPID_TWITTER241
         try:
             ok, _ = await self._set_twitter_accounts()
             if not ok or not self.twitter_accounts:
-                return False, 500, "未获取到twitter账号", []
-            if not twitter_account:
-                twitter_account = await self._get_available_normal_account()
-                if not twitter_account:
-                    return False, 500, "未获取到normal账号", []
+                return False, 500, "未获取到twitter账号", [], []
+            # 1. 先获取uid
+            if not uid:
+                try:
+                    uid = await self._fetch_uid_by_username(username, self.main_twitter_account)
+                except Exception as e:
+                    self.logger.error(f"获取uid异常: {e}, username={username}, channel={channel}")
+                    import traceback
+                    self.logger.error(traceback.format_exc())
+                    return False, 500, f"获取uid异常: {str(e)}", [], []
+                if not uid:
+                    self.logger.warning(f"无法获取用户 {username} 的 uid")
+                    return False, 404, "无法获取用户uid", [], []
 
-            # 存储所有获取的推文
-            all_tweets = []
-            next_cursor = None
-
-            # 循环获取推文，直到达到请求的数量或没有更多推文
-            while len(all_tweets) < count:
-                # 使用新的方法获取推文
-                success, code, result = await self._fetch_user_tweets_by_uid(uid, username, min(100, count - len(all_tweets)), next_cursor, twitter_account)
-                
-                if not success:
-                    return False, code, f"获取推文失败: HTTP {code}", all_tweets
-
-                # 添加本次获取的推文到总列表
-                all_tweets.extend(result.get("tweets", []))
-
-                # 更新下一页游标
-                next_cursor = result.get("next_cursor")
-
-                # 如果没有更多推文或已经达到请求的数量，退出循环
-                if not next_cursor or len(all_tweets) >= count:
-                    break
-
-                # 添加随机延迟，避免请求过于频繁
-                await self._random_delay(1, 3)
+            # 2. 根据channel选择策略
+            strategy = self.get_strategy(channel)
+            if not strategy:
+                return False, 404, "无法获取策略", [], []
+            try:
+                ok, code, msg, pinned_tweets, normal_tweets = await strategy.fetch_user_tweets(username=username, pages=pages, uid=uid)
+                if not ok:  
+                    return False, code, msg, [], []
+            except Exception as e:
+                self.logger.error(f"策略调用异常: {e}, username={username}, uid={uid}, channel={channel}")
+                import traceback
+                self.logger.error(traceback.format_exc())
+                return False, 500, f"策略调用异常: {str(e)}", [], []
 
             # 确保返回数量不超过请求数量
-            return True, 200, "success", all_tweets[:count]
+            return True, 200, "success", pinned_tweets, normal_tweets
         except Exception as e:
             self.logger.error(f"获取用户推文失败: {str(e)}")
             import traceback
             self.logger.error(traceback.format_exc())
-            return False, 500, f"获取推文失败: {str(e)}", []
+            return False, 500, f"获取推文失败: {str(e)}", [], []
 
     # 获取可用的 normal 账号，每个账号冷却时间60秒
     async def _get_available_normal_account(self) -> Optional[Dict[str, Any]] | None:
@@ -1190,3 +1165,58 @@ class TwitterFetcher(BaseFetcher):
                 return acc
             self.logger.info(f"所有similar账号都在冷却中，等待 {self.twitter_accounts_cooldown_seconds} 秒...")
             await asyncio.sleep(self.twitter_accounts_cooldown_seconds)
+
+    async def fetch_user_followings(
+        self, uid: str, username: str, pages: int = 1, size: int = 70, channel: str = None
+    ) -> Tuple[bool, int, str, List[Any]]:
+        """
+        支持分页获取关注列表
+        Args:
+            uid (str): 用户ID
+            username (str): 用户名
+            pages (int): 页数
+            size (int): 每页条数，最大70
+        Returns:
+            Tuple[bool, int, str, List[Any]]: (是否成功, 状态码, 消息, 关注列表)
+        """
+        followings = []
+        if not channel:
+            channel = CHANNEL_RAPID_TWITTER241
+        try:
+            ok, _ = await self._set_twitter_accounts()
+            if not ok or not self.twitter_accounts:
+                return False, 500, "未获取到twitter账号", [], []
+            # 1. 先获取uid
+            if not uid:
+                try:
+                    uid = await self._fetch_uid_by_username(username, self.main_twitter_account)
+                except Exception as e:
+                    self.logger.error(f"获取uid异常: {e}, username={username}, channel={channel}")
+                    import traceback
+                    self.logger.error(traceback.format_exc())
+                    return False, 500, f"获取uid异常: {str(e)}", followings
+                if not uid:
+                    self.logger.warning(f"无法获取用户 {username} 的 uid")
+                    return False, 404, "无法获取用户uid", followings
+
+            # 2. 根据channel选择策略
+            strategy = self.get_strategy(channel)
+            if not strategy:
+                return False, 404, "无法获取策略", followings
+            try:
+                ok, code, msg, followings = await strategy.fetch_user_followings(username=username, pages=pages, uid=uid)
+                if not ok:
+                    return False, code, msg, followings
+            except Exception as e:
+                self.logger.error(f"策略调用异常: {e}, username={username}, uid={uid}, channel={channel}")
+                import traceback
+                self.logger.error(traceback.format_exc())
+                return False, 500, f"策略调用异常: {str(e)}", [], []
+
+            # 确保返回数量不超过请求数量
+            return True, 200, "success", followings
+        except Exception as e:
+            self.logger.error(f"获取用户推文失败: {str(e)}")
+            import traceback
+            self.logger.error(traceback.format_exc())
+            return False, 500, f"获取推文失败: {str(e)}", followings
