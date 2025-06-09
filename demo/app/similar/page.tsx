@@ -47,17 +47,30 @@ export default function SimilarPage() {
       message.error('最大值必须大于最小值');
       return;
     }
+    // 校验Avg Views最大值大于最小值
+    if (
+      values.avgViewsMin !== undefined && values.avgViewsMin !== '' &&
+      values.avgViewsMax !== undefined && values.avgViewsMax !== '' &&
+      Number(values.avgViewsMax) <= Number(values.avgViewsMin)
+    ) {
+      message.error('Avg Views最大值必须大于最小值');
+      return;
+    }
     setIsLoading(true);
     try {
       const follows: any = {};
       if (values.followsMin !== undefined && values.followsMin !== '') follows.min = values.followsMin;
       if (values.followsMax !== undefined && values.followsMax !== '') follows.max = values.followsMax;
+      const avg_views: any = {};
+      if (values.avgViewsMin !== undefined && values.avgViewsMin !== '') avg_views.min = values.avgViewsMin;
+      if (values.avgViewsMax !== undefined && values.avgViewsMax !== '') avg_views.max = values.avgViewsMax;
       const payload: any = {
         platform: values.platform,
         username: values.username,
         count: values.count || 50
       };
       if (Object.keys(follows).length > 0) payload.follows = follows;
+      if (Object.keys(avg_views).length > 0) payload.avg_views = avg_views;
       const response = await fetchTask('/fetch/similar', payload);
       setTaskId(response.task_id);
       setStatus('pending');
@@ -194,6 +207,43 @@ export default function SimilarPage() {
                   <span style={{ margin: '0 8px', whiteSpace: 'nowrap' }}>-</span>
                   <Form.Item
                     name="followsMax"
+                    noStyle
+                  >
+                    <InputNumber
+                      size="large"
+                      style={{ flex: 1, width: '100%' }}
+                      placeholder="∞"
+                      min={0}
+                      formatter={(value: number | string | undefined) => {
+                        if (value === undefined || value === null || value === '') return '∞';
+                        return String(value);
+                      }}
+                      parser={(value: string | undefined) => {
+                        if (value === '∞' || value === undefined || value === null || value === '') return '';
+                        return value.replace(/[^\d]/g, '');
+                      }}
+                    />
+                  </Form.Item>
+                </div>
+              </Form.Item>
+
+              <Form.Item label="Avg Views" style={{ marginBottom: 24 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Form.Item
+                    name="avgViewsMin"
+                    noStyle
+                    initialValue={1000}
+                  >
+                    <InputNumber
+                      size="large"
+                      style={{ flex: 1, width: '100%' }}
+                      placeholder="最小值"
+                      min={0}
+                    />
+                  </Form.Item>
+                  <span style={{ margin: '0 8px', whiteSpace: 'nowrap' }}>-</span>
+                  <Form.Item
+                    name="avgViewsMax"
                     noStyle
                   >
                     <InputNumber
