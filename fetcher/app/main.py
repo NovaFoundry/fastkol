@@ -293,8 +293,7 @@ async def fetch_similar(request: FetchSimilarRequest):
             "username": request.username,
             "uid": request.uid,
             "count": request.count,
-            "follows_min": request.follows.min if request.follows else None,
-            "follows_max": request.follows.max if request.follows else None
+            "follows": request.follows.dict() if request.follows else None
         }
     }
     
@@ -340,8 +339,7 @@ async def fetch_search(request: FetchSearchRequest):
         "params": {
             "query": request.query,
             "count": request.count,
-            "follows_min": request.follows.min if request.follows else None,
-            "follows_max": request.follows.max if request.follows else None
+            "follows": request.follows.dict() if request.follows else None
         }
     }
     

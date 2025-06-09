@@ -225,10 +225,11 @@ async def run_similar_fetcher(platform, params) -> Tuple[bool, str, List[Dict[st
 
     try:
         username = params.get("username")
-        count = params.get("count", 200)
+        count = params.get("count", 50)
         uid = params.get("uid")
-        logger.info(f"查找与 {username} 相似的用户，数量: {count}, uid: {uid}")
-        success, msg, result = await fetcher.find_similar_users(username, count, uid)
+        follows = params.get("follows")
+        logger.info(f"查找与 {username} 相似的用户，数量: {count}, uid: {uid}, follows: {follows}")
+        success, msg, result = await fetcher.find_similar_users(username=username, count=count, uid=uid, follows=follows)
         return (success, msg, result)
     finally:
         # 清理资源
@@ -248,9 +249,10 @@ async def run_search_fetcher(platform, params) -> Tuple[bool, str, List[Dict[str
 
     try:
         query = params.get("query")
-        count = params.get("count", 200)
-        logger.info(f"使用query: {query} 搜索用户, 数量: {count}")
-        success, msg, result = await fetcher.find_users_by_search(query, count)
+        count = params.get("count", 50)
+        follows = params.get("follows")
+        logger.info(f"使用query: {query} 搜索用户, 数量: {count}, follows: {follows}")
+        success, msg, result = await fetcher.find_users_by_search(query=query, count=count, follows=follows)
         return (success, msg, result)
     finally:
         # 清理资源

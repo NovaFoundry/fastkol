@@ -320,10 +320,68 @@ class TwitterFetcher(BaseFetcher):
     ## 4. bio匹配
 
     ## 综合得分
-    ## 综合得分 = 来源权重 × (内容相似度 × α + Bio 匹配度 × β + 活跃度 × δ)
+    ## 综合得分 = 来源权重 × (内容相似度 × α + Bio 匹配度 × β)
     ## α=0.4, β=0.2, δ=0.2
-    ## 活跃度 = 最近10条推文平均浏览量
-    async def find_similar_users(self, username: str, count: int = 20, uid: str = None) -> Tuple[bool, str, List[Dict[str, Any]]]:
+    ##
+    def _score_similar_users(
+        self,
+        first_level_users: List[Dict[str, Any]],
+        second_level_users: List[Dict[str, Any]],
+        followings_users: List[Dict[str, Any]],
+        tag_search_users: List[Dict[str, Any]] = None,
+        alpha: float = 0.4,
+        beta: float = 0.2,
+        delta: float = 0.2
+    ) -> List[Dict[str, Any]]:
+        """
+        对不同来源的相似用户进行综合打分排序
+        """
+        source_weights = {
+            'first_level': 1.0,
+            'second_level': 0.5,
+            'followings': 0.3,
+            'tag_search': 0.2
+        }
+        all_users = []
+        uid_set = set()
+
+        def add_users(users, source):
+            for u in users:
+                if u.get('uid') and u['uid'] not in uid_set:
+                    u['source'] = source
+                    all_users.append(u)
+                    uid_set.add(u['uid'])
+
+        add_users(first_level_users, 'first_level')
+        add_users(second_level_users, 'second_level')
+        add_users(followings_users, 'followings')
+        if tag_search_users:
+            add_users(tag_search_users, 'tag_search')
+
+        # 计算分数
+        for user in all_users:
+            source_weight = source_weights.get(user['source'], 0)
+            content_sim = user.get('content_similarity', 0)
+            bio_sim = user.get('bio_similarity', 0)
+            activity = user.get('activity', 0)
+            user['score'] = source_weight * (content_sim * alpha + bio_sim * beta + activity * delta)
+
+        return sorted(all_users, key=lambda x: x.get('score', 0), reverse=True)
+
+    @staticmethod
+    def _filter_follows(user: dict, follows: dict) -> bool:
+        if not follows:
+            return True
+        min_f = follows.get('min')
+        max_f = follows.get('max')
+        fc = user.get('followers_count', 0)
+        if min_f is not None and fc < min_f:
+            return False
+        if max_f is not None and fc > max_f:
+            return False
+        return True
+
+    async def find_similar_users(self, username: str, count: int = 20, uid: str = None, follows: Dict[str, Any] = None) -> Tuple[bool, str, List[Dict[str, Any]]]:
         """找到与指定用户相似的用户,包括二度关系用户
         
         Args:
@@ -336,6 +394,9 @@ class TwitterFetcher(BaseFetcher):
         """
         self.logger.info(f"查找与 {username} 相似的 Twitter 用户，数量: {count}")
         try:
+            first_level_users = []
+            second_level_users = []
+            followings_users = []
             # 获取 similar 专用账号
             ok, _ = await self._set_twitter_accounts()
             if not ok or not self.twitter_accounts:
@@ -347,24 +408,65 @@ class TwitterFetcher(BaseFetcher):
                 if not uid:
                     return (False, "无法获取用户 uid", [])
 
-            # 用集合来存储已处理的用户ID，用于去重
             processed_uids = set()
-            all_similar_users = []
 
             # 步骤1: 获取第一层相似用户
             first_level_users = await self._find_similar_users_by_uid(uid, twitter_account=self.main_twitter_account)
             self.logger.info(f"获取到第一层相似用户: {len(first_level_users)} 个")
+            # ====== 新增：先过滤第一层 ======
+            if follows:
+                first_level_users = list(filter(lambda u: self._filter_follows(u, follows), first_level_users))
+            # ====== END ======
+            self.logger.info(f"第一层相似用户数量: {len(first_level_users)}")
 
-            second_level_users = []
+            # 步骤2: 获取第二层相似用户
+            second_level_uid_set = set()
             for first_level_user in first_level_users[:20]:
                 if first_level_user["uid"]:
                     users = await self._find_similar_users_by_uid(first_level_user["uid"], twitter_account=self.main_twitter_account)
                     self.logger.info(f"获取到{first_level_user['username']}第二层相似用户: {len(users)} 个")
                     if isinstance(users, list):
-                        second_level_users.extend(users)
+                        for u in users:
+                            if u.get('uid') and u['uid'] not in second_level_uid_set:
+                                second_level_users.append(u)
+                                second_level_uid_set.add(u['uid'])
                     await asyncio.sleep(random.uniform(0.5, 1.5))
+            # ====== 新增：先过滤第二层 ======
+            if follows:
+                second_level_users = list(filter(lambda u: self._filter_follows(u, follows), second_level_users))
+            # ====== END ======
+            self.logger.info(f"第二层相似用户数量: {len(second_level_users)}")
 
-            return (True, "success", all_similar_users[:count])
+            # 步骤3: 获取关注列表
+            ok, _, _, followings = await self.fetch_user_followings(uid=uid, username=username, pages=1, size=70, channel=CHANNEL_RAPID_TWITTER241)
+            if not ok:
+                return (False, "获取关注列表失败", [])
+            followings_users.extend(followings)
+            # ====== 新增：先过滤关注列表 ======
+            if follows:
+                followings_users = list(filter(lambda u: self._filter_follows(u, follows), followings_users))
+            # ====== END ======
+            self.logger.info(f"关注列表数量: {len(followings_users)}")
+
+            # 步骤4: tag搜索获取（可选，未实现）
+            tag_search_users = []
+            # TODO: 可根据用户常用tag进行搜索并补充相似用户
+            # ====== 新增：先过滤tag搜索 ======
+            if follows:
+                tag_search_users = list(filter(lambda u: self._filter_follows(u, follows), tag_search_users))
+            # ====== END ======
+            self.logger.info(f"tag搜索数量: {len(tag_search_users)}")
+
+            # 排序
+            sorted_users = self._score_similar_users(
+                first_level_users,
+                second_level_users,
+                followings_users,
+                tag_search_users
+            )
+
+            result_users = sorted_users[:count]
+            return (True, "success", result_users)
         except Exception as e:
             self.logger.error(f"查找相似用户失败: {str(e)}")
             return (False, str(e), [])
@@ -432,7 +534,7 @@ class TwitterFetcher(BaseFetcher):
             self.logger.error(f"无法获取用户 {username} 的 uid")
             return None
 
-    async def _find_similar_users_by_uid(self, uid: str, twitter_account) -> List[Dict[str, Any]]:
+    async def _find_similar_users_by_uid(self, uid: str, twitter_account: dict = None) -> List[Dict[str, Any]]:
         """通过用户ID获取相似用户
         
         Args:
@@ -775,7 +877,7 @@ class TwitterFetcher(BaseFetcher):
             self.logger.info(f"所有normal账号都在冷却中，等待 10 秒...")
             await asyncio.sleep(10)
 
-    async def find_users_by_search(self, query: str, count: int = 20) -> Tuple[bool, str, List[Dict[str, Any]]]:
+    async def find_users_by_search(self, query: str, count: int = 20, follows: Dict[str, Any] = None) -> Tuple[bool, str, List[Dict[str, Any]]]:
         """搜索用户
         
         Args:
