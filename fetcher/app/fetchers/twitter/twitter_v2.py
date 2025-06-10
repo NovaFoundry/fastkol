@@ -381,14 +381,15 @@ class TwitterFetcher(BaseFetcher):
             return False
         return True
 
-    async def find_similar_users(self, username: str, count: int = 20, uid: str = None, follows: Dict[str, Any] = None) -> Tuple[bool, str, List[Dict[str, Any]]]:
+    async def find_similar_users(self, username: str, count: int = 20, uid: str = None, follows: Dict[str, Any] = None, avg_views: Dict[str, Any] = None) -> Tuple[bool, str, List[Dict[str, Any]]]:
         """找到与指定用户相似的用户,包括二度关系用户
         
         Args:
             username (str): 用户名
             count (int): 要获取的相似用户数量
             uid (str, optional): 用户ID，如果提供则使用此ID查找相似用户
-        
+            follows (dict, optional): 关注者筛选
+            avg_views (dict, optional): 平均浏览量筛选
         Returns:
             Tuple[bool, str, List[Dict[str, Any]]]: 是否成功获取用户资料, msg, 相似用户列表
         """
@@ -397,6 +398,7 @@ class TwitterFetcher(BaseFetcher):
             first_level_users = []
             second_level_users = []
             followings_users = []
+            result_users = []
             # 获取 similar 专用账号
             ok, _ = await self._set_twitter_accounts()
             if not ok or not self.twitter_accounts:
@@ -457,6 +459,7 @@ class TwitterFetcher(BaseFetcher):
             # ====== END ======
             self.logger.info(f"tag搜索数量: {len(tag_search_users)}")
 
+
             # 排序
             sorted_users = self._score_similar_users(
                 first_level_users,
@@ -465,14 +468,31 @@ class TwitterFetcher(BaseFetcher):
                 tag_search_users
             )
 
-            result_users = sorted_users[:count]
-            return (True, "success", result_users)
+            for user in sorted_users:
+                ok, _, _, _, normal_tweets = await self.fetch_user_tweets(username=user['username'], uid=user['uid'], pages=1)
+                current_avg_views = await self._calculate_avg_views(normal_tweets)
+                self.logger.info(f"用户 {user['username']} 的平均浏览量: {current_avg_views}, 获取tweets进度: {len(result_users)}/{count}")
+                user['avg_views_last_10_tweets'] = current_avg_views
+                if avg_views:
+                    if avg_views.get('min') is not None and current_avg_views < avg_views['min']:
+                        continue
+                    if avg_views.get('max') is not None and current_avg_views > avg_views['max']:
+                        continue
+                    if len(result_users) >= count:
+                        break
+                    result_users.append(user)
+                else:
+                    if len(result_users) >= count:
+                        break
+                    result_users.append(user)
+
+            return (True, "success", result_users[:count])
         except Exception as e:
             self.logger.error(f"查找相似用户失败: {str(e)}")
             return (False, str(e), [])
 
     async def _calculate_avg_views(self, tweets: List[Dict[str, Any]], limit: int = 10) -> float:
-        """计算非置顶推文的平均浏览量
+        """计算非置顶推文的平均浏览量，去掉一个最高和一个最低
         
         Args:
             tweets (List[Dict[str, Any]]): 推文列表
@@ -483,15 +503,21 @@ class TwitterFetcher(BaseFetcher):
         """
         if not tweets:
             return 0
-            
+        
         # 过滤掉置顶推文并获取前N条
         non_pinned_tweets = [tweet for tweet in tweets if not tweet.get('is_pinned', False)][:limit]
         if not non_pinned_tweets:
             return 0
-            
-        # 确保views_count是整数
-        total_views = sum(tweet.get('views_count', 0) for tweet in non_pinned_tweets)
-        avg_views = total_views / len(non_pinned_tweets)
+        
+        views_list = [tweet.get('views_count', 0) for tweet in non_pinned_tweets]
+        if len(views_list) <= 2:
+            # 不足3条，直接平均
+            avg_views = sum(views_list) / len(views_list)
+        else:
+            # 去掉一个最高和一个最低
+            views_list_sorted = sorted(views_list)
+            trimmed = views_list_sorted[1:-1]
+            avg_views = sum(trimmed) / len(trimmed) if trimmed else 0
         return math.ceil(avg_views)  # 向上取整
 
     async def _extract_email_from_text(self, text: str) -> str:

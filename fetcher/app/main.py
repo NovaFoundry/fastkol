@@ -129,6 +129,18 @@ class FollowsFilter(BaseModel):
             raise ValueError('关注者数量不能为负数')
         return v
 
+class AvgViewsFilter(BaseModel):
+    """平均浏览量筛选模型"""
+    min: Optional[int] = Field(None, description="最小平均浏览量")
+    max: Optional[int] = Field(None, description="最大平均浏览量")
+
+    @field_validator('min', 'max')
+    @classmethod
+    def validate_non_negative(cls, v):
+        if v is not None and v < 0:
+            raise ValueError('平均浏览量不能为负数')
+        return v
+
 class FetchSimilarRequest(BaseModel):
     """爬虫请求模型"""
     platform: str = Field(..., description="平台名称，例如 'twitter'")
@@ -136,6 +148,7 @@ class FetchSimilarRequest(BaseModel):
     uid: Optional[str] = Field(None, description="用户ID")
     count: int = Field(50, description="返回结果数量")
     follows: Optional[FollowsFilter] = Field(None, description="关注者数量筛选")
+    avg_views: Optional[AvgViewsFilter] = Field(None, description="平均浏览量筛选")
     
     @field_validator('platform')
     @classmethod
@@ -293,7 +306,8 @@ async def fetch_similar(request: FetchSimilarRequest):
             "username": request.username,
             "uid": request.uid,
             "count": request.count,
-            "follows": request.follows.dict() if request.follows else None
+            "follows": request.follows.dict() if request.follows else None,
+            "avg_views": request.avg_views.dict() if request.avg_views else None
         }
     }
     
