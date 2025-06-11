@@ -1395,6 +1395,7 @@ class TwitterFetcher(BaseFetcher):
                     normal_tweets.extend(page_normal)
                     # 可扩展：分页游标支持
                 avg = await self._calculate_avg_views(normal_tweets)
+                self.logger.info(f"用户 {user['username']} 的平均浏览量: {avg}, 获取tweets进度: {len(result_users)}/{target_count}")
                 # 判断是否满足条件
                 if avg_views:
                     if avg_views.get('min') is not None and avg < avg_views['min']:
@@ -1408,7 +1409,6 @@ class TwitterFetcher(BaseFetcher):
                             'normal_tweets': normal_tweets,
                             'avg_views_last_10_tweets': avg
                         }
-                        self.logger.info(f"用户 {user['username']} 的平均浏览量: {avg}, 获取tweets进度: {len(result_users)}/{target_count}")
                         if len(result_users) >= target_count:
                             enough_event.set()
             except Exception as e:

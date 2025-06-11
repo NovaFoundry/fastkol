@@ -7,7 +7,7 @@ import asyncio
 import json
 from aiohttp import ClientError
 from json import JSONDecodeError
-from app.core.ratelimiter import RateLimiter
+from app.core.distributed_ratelimiter import DistributedRateLimiter
 
 class RapidTwitter241Strategy(FetchUserTweetsStrategy):
 
@@ -19,7 +19,7 @@ class RapidTwitter241Strategy(FetchUserTweetsStrategy):
         self.x_rapidapi_host = self.config.get("x-rapidapi-host")
         self.x_rapidapi_key = self.config.get("x-rapidapi-key")
         max_requests_per_second = self.config.get("max_requests_per_second", 1)
-        self.rate_limiter = RateLimiter(rate_per_sec=max_requests_per_second)
+        self.rate_limiter = DistributedRateLimiter(key='twitter:rapid_twitter241', rate_per_sec=max_requests_per_second)
 
     def _get_headers(self):
         return {
