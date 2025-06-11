@@ -468,23 +468,29 @@ class TwitterFetcher(BaseFetcher):
                 tag_search_users
             )
 
+            user_tweets = await self.fetch_tweets_for_users_concurrent(users=sorted_users, pages=1, avg_views=avg_views, target_count=count)
             for user in sorted_users:
-                ok, _, _, _, normal_tweets = await self.fetch_user_tweets(username=user['username'], uid=user['uid'], pages=1)
-                current_avg_views = await self._calculate_avg_views(normal_tweets)
-                self.logger.info(f"用户 {user['username']} 的平均浏览量: {current_avg_views}, 获取tweets进度: {len(result_users)}/{count}")
-                user['avg_views_last_10_tweets'] = current_avg_views
-                if avg_views:
-                    if avg_views.get('min') is not None and current_avg_views < avg_views['min']:
-                        continue
-                    if avg_views.get('max') is not None and current_avg_views > avg_views['max']:
-                        continue
-                    if len(result_users) >= count:
-                        break
+                if user['uid'] in user_tweets:
+                    user['avg_views_last_10_tweets'] = user_tweets[user['uid']]['avg_views_last_10_tweets']
                     result_users.append(user)
-                else:
-                    if len(result_users) >= count:
-                        break
-                    result_users.append(user)
+
+            # for user in sorted_users:
+            #     ok, _, _, _, normal_tweets = await self.fetch_user_tweets(username=user['username'], uid=user['uid'], pages=1)
+            #     current_avg_views = await self._calculate_avg_views(normal_tweets)
+            #     self.logger.info(f"用户 {user['username']} 的平均浏览量: {current_avg_views}, 获取tweets进度: {len(result_users)}/{count}")
+            #     user['avg_views_last_10_tweets'] = current_avg_views
+            #     if avg_views:
+            #         if avg_views.get('min') is not None and current_avg_views < avg_views['min']:
+            #             continue
+            #         if avg_views.get('max') is not None and current_avg_views > avg_views['max']:
+            #             continue
+            #         if len(result_users) >= count:
+            #             break
+            #         result_users.append(user)
+            #     else:
+            #         if len(result_users) >= count:
+            #             break
+            #         result_users.append(user)
 
             return (True, "success", result_users[:count])
         except Exception as e:
@@ -1348,3 +1354,72 @@ class TwitterFetcher(BaseFetcher):
             import traceback
             self.logger.error(traceback.format_exc())
             return False, 500, f"获取推文失败: {str(e)}", followings
+
+    async def fetch_tweets_for_users_concurrent(
+        self,
+        users: List[Dict[str, Any]],
+        pages: int = 1,
+        avg_views: Optional[Dict[str, Any]] = None,
+        target_count: int = 50,
+        max_concurrent: int = 10,
+    ) -> Dict[str, Dict[str, Any]]:
+        """
+        并发获取一批用户的 tweets，满足 avg_views 条件的用户达到 target_count 时立即返回。
+        Args:
+            users: 用户列表，每个元素包含至少 username/uid
+            pages: 每个用户获取多少页
+            avg_views: 平均浏览量筛选条件
+            target_count: 满足条件的用户数量要求
+            max_concurrent: 最大并发数
+        Returns:
+            满足条件的用户字典，key为uid，value为{'pinned_tweets': [...], 'normal_tweets': [...], 'avg_views_last_10_tweets': ...}
+        """
+        result_users = {}
+        result_lock = asyncio.Lock()
+        enough_event = asyncio.Event()
+        semaphore = asyncio.Semaphore(max_concurrent)
+
+        async def fetch_for_user(user):
+            nonlocal result_users
+            pinned_tweets = []
+            normal_tweets = []
+            try:
+                for page in range(pages):
+                    if enough_event.is_set():
+                        return
+                    async with semaphore:
+                        ok, _, _, page_pinned, page_normal = await self.fetch_user_tweets(username=user['username'], uid=user['uid'], pages=1)
+                    if not ok:
+                        break
+                    pinned_tweets.extend(page_pinned)
+                    normal_tweets.extend(page_normal)
+                    # 可扩展：分页游标支持
+                avg = await self._calculate_avg_views(normal_tweets)
+                # 判断是否满足条件
+                if avg_views:
+                    if avg_views.get('min') is not None and avg < avg_views['min']:
+                        return
+                    if avg_views.get('max') is not None and avg > avg_views['max']:
+                        return
+                async with result_lock:
+                    if len(result_users) < target_count:
+                        result_users[user['uid']] = {
+                            'pinned_tweets': pinned_tweets,
+                            'normal_tweets': normal_tweets,
+                            'avg_views_last_10_tweets': avg
+                        }
+                        self.logger.info(f"用户 {user['username']} 的平均浏览量: {avg}, 获取tweets进度: {len(result_users)}/{target_count}")
+                        if len(result_users) >= target_count:
+                            enough_event.set()
+            except Exception as e:
+                self.logger.error(f"fetch_for_user error: {e}, user={user.get('username')}")
+
+        tasks = [asyncio.create_task(fetch_for_user(user)) for user in users]
+        await enough_event.wait()  # 等到够了
+        # 取消所有未完成的任务
+        for task in tasks:
+            if not task.done():
+                task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
+        # 只返回前target_count个
+        return dict(list(result_users.items())[:target_count])
