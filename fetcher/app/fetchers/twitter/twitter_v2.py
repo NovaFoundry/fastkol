@@ -1367,7 +1367,7 @@ class TwitterFetcher(BaseFetcher):
         并发获取一批用户的 tweets，满足 avg_views 条件的用户达到 target_count 时立即返回。
         Args:
             users: 用户列表，每个元素包含至少 username/uid
-            pages: 每个用户获取多少页
+            pages: 每个用户获取多少页（当前只取第一页）
             avg_views: 平均浏览量筛选条件
             target_count: 满足条件的用户数量要求
             max_concurrent: 最大并发数
@@ -1384,16 +1384,14 @@ class TwitterFetcher(BaseFetcher):
             pinned_tweets = []
             normal_tweets = []
             try:
-                for page in range(pages):
-                    if enough_event.is_set():
-                        return
-                    async with semaphore:
-                        ok, _, _, page_pinned, page_normal = await self.fetch_user_tweets(username=user['username'], uid=user['uid'], pages=1)
-                    if not ok:
-                        break
-                    pinned_tweets.extend(page_pinned)
-                    normal_tweets.extend(page_normal)
-                    # 可扩展：分页游标支持
+                if enough_event.is_set():
+                    return
+                async with semaphore:
+                    ok, _, _, page_pinned, page_normal = await self.fetch_user_tweets(username=user['username'], uid=user['uid'], pages=pages)
+                if not ok:
+                    return
+                pinned_tweets.extend(page_pinned)
+                normal_tweets.extend(page_normal)
                 avg = await self._calculate_avg_views(normal_tweets)
                 self.logger.info(f"用户 {user['username']} 的平均浏览量: {avg}, 获取tweets进度: {len(result_users)}/{target_count}")
                 # 判断是否满足条件
