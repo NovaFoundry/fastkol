@@ -107,5 +107,5 @@ jobs:
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           script: |
             cd ${{ secrets.DEPLOY_TARGET }}
-            docker compose pull
+            docker compose pull --no-cache
             docker compose up -d --force-recreate
