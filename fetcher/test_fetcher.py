@@ -6,6 +6,7 @@ import json
 import traceback
 from app.fetchers.twitter.twitter_v2 import TwitterFetcher
 from app.fetchers.instagram import InstagramFetcher
+from app.fetchers.tiktok import TiktokFetcher
 # 添加项目根目录到 Python 路径
 current_dir = os.path.abspath(os.path.dirname(__file__))
 sys.path.insert(0, current_dir)
@@ -28,6 +29,8 @@ async def test_fetcher(platform, action, params):
             fetcher = TwitterFetcher()
         elif platform == "instagram":
             fetcher = InstagramFetcher()
+        elif platform == "tiktok":
+            fetcher = TiktokFetcher()
         else:
             raise ValueError(f"不支持的平台: {platform}")
         
@@ -46,7 +49,7 @@ async def test_fetcher(platform, action, params):
         elif action == "fetch_user_profile":
             username = params.get("username")
             logger.info(f"获取用户资料: {username}")
-            result = await fetcher.fetch_user_profile(username)
+            _, _, _, result = await fetcher.fetch_user_profile(username)
         elif action == "fetch_user_tweets":
             username = params.get("username")
             count = params.get("count", 50)
@@ -90,11 +93,11 @@ async def test_fetcher(platform, action, params):
 
 if __name__ == "__main__":
     # 示例: 测试 Twitter 爬虫
-    platform = "twitter"
-    action = "fetch_user_followings"  # 修改为测试搜索用户
+    platform = "tiktok"
+    action = "fetch_user_profile"  # 修改为测试搜索用户
     params = {
         # "uid": "64325658281",
-        "username": "deedydas",
+        "username": "tzu888",
         "count": 20  # 要获取的用户数量
     }
     
@@ -106,4 +109,4 @@ if __name__ == "__main__":
         print(f"测试结果: {json.dumps(result, ensure_ascii=False)}")
     except Exception as e:
         logger.error(f"主程序异常: {str(e)}")
-        logger.error(traceback.format_exc()) 
+        logger.error(traceback.format_exc())
