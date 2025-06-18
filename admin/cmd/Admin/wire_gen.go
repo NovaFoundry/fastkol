@@ -38,8 +38,11 @@ func wireApp(confServer *conf.Server, confData *conf.Data, confRegistry *conf.Re
 	instagramAccountRepo := data.NewInstagramAccountRepo(dataData, logger)
 	instagramAccountUsecase := biz.NewInstagramAccountUsecase(instagramAccountRepo, logger)
 	instagramAccountService := service.NewInstagramAccountService(instagramAccountUsecase, logger)
-	grpcServer := server.NewGRPCServer(confServer, greeterService, twitterAccountService, instagramAccountService, logger)
-	httpServer := server.NewHTTPServer(confServer, greeterService, twitterAccountService, instagramAccountService, logger)
+	tikTokAccountRepo := data.NewTikTokAccountRepo(dataData, logger)
+	tikTokAccountUsecase := biz.NewTikTokAccountUsecase(tikTokAccountRepo, logger)
+	tikTokAccountService := service.NewTikTokAccountService(tikTokAccountUsecase, logger)
+	grpcServer := server.NewGRPCServer(confServer, greeterService, twitterAccountService, instagramAccountService, tikTokAccountService, logger)
+	httpServer := server.NewHTTPServer(confServer, greeterService, twitterAccountService, instagramAccountService, tikTokAccountService, logger)
 	app := newApp(bc, logger, grpcServer, httpServer)
 	return app, func() {
 		cleanup()

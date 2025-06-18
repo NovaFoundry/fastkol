@@ -1,0 +1,190 @@
+syntax = "proto3";
+
+package tiktok.v1;
+
+import "google/api/annotations.proto";
+
+option go_package = "Admin/api/tiktok/v1;v1";
+option java_multiple_files = true;
+option java_package = "dev.kratos.api.tiktok.v1";
+option java_outer_classname = "TikTokProtoV1";
+
+// TikTokAccount服务定义
+service TikTokAccount {
+  // 创建TikTok账号
+  rpc CreateTikTokAccount (CreateTikTokAccountRequest) returns (CreateTikTokAccountReply) {
+    option (google.api.http) = {
+      post: "/v1/tiktok/accounts"
+      body: "*"
+    };
+  }
+  
+  // 更新TikTok账号
+  rpc UpdateTikTokAccount (UpdateTikTokAccountRequest) returns (UpdateTikTokAccountReply) {
+    option (google.api.http) = {
+      put: "/v1/tiktok/accounts/{id}"
+      body: "*"
+    };
+  }
+  
+  // 删除TikTok账号
+  rpc DeleteTikTokAccount (DeleteTikTokAccountRequest) returns (DeleteTikTokAccountReply) {
+    option (google.api.http) = {
+      delete: "/v1/tiktok/accounts/{id}"
+    };
+  }
+  
+  // 获取TikTok账号
+  rpc GetTikTokAccount (GetTikTokAccountRequest) returns (GetTikTokAccountReply) {
+    option (google.api.http) = {
+      get: "/v1/tiktok/accounts/{id}"
+    };
+  }
+  
+  // 列出所有TikTok账号
+  rpc ListTikTokAccounts (ListTikTokAccountsRequest) returns (ListTikTokAccountsReply) {
+    option (google.api.http) = {
+      get: "/v1/tiktok/accounts"
+    };
+  }
+
+  // 获取并锁定TikTok账号
+  rpc LockTikTokAccounts (LockTikTokAccountsRequest) returns (LockTikTokAccountsReply) {
+    option (google.api.http) = {
+      post: "/v1/tiktok/accounts/lock"
+      body: "*"
+    };
+  }
+
+  // 解锁TikTok账号
+  rpc UnlockTikTokAccounts (UnlockTikTokAccountsRequest) returns (UnlockTikTokAccountsReply) {
+    option (google.api.http) = {
+      post: "/v1/tiktok/accounts/unlock"
+      body: "*"
+    };
+  }
+}
+
+// 创建TikTok账号请求
+message CreateTikTokAccountRequest {
+  string username = 1;
+  string email = 2;
+  string phone = 3;
+  string password = 4;
+  map<string, string> headers = 5;
+  map<string, string> params = 6;
+  string status = 7;
+}
+
+// 创建TikTok账号响应
+message CreateTikTokAccountReply {
+  TikTokAccountInfo account = 1;
+}
+
+// 更新TikTok账号请求
+message UpdateTikTokAccountRequest {
+  int64 id = 1;
+  string username = 2;
+  string email = 3;
+  string phone = 4;
+  string password = 5;
+  map<string, string> headers = 6;
+  map<string, string> params = 7;
+  string status = 8;
+}
+
+// 更新TikTok账号响应
+message UpdateTikTokAccountReply {
+  int64 id = 1;
+  string username = 2;
+  string email = 3;
+  string phone = 4;
+  map<string, string> headers = 5;
+  map<string, string> params = 6;
+  string status = 7;
+  string updated_at = 8;
+}
+
+// 删除TikTok账号请求
+message DeleteTikTokAccountRequest {
+  int64 id = 1;
+}
+
+// 删除TikTok账号响应
+message DeleteTikTokAccountReply {
+  bool success = 1;
+}
+
+// 获取TikTok账号请求
+message GetTikTokAccountRequest {
+  int64 id = 1;
+}
+
+// 获取TikTok账号响应
+message GetTikTokAccountReply {
+  TikTokAccountInfo account = 1;
+}
+
+// 列出所有TikTok账号请求
+message ListTikTokAccountsRequest {
+  int32 page_size = 1; // 每页数量，默认20
+  int32 page_num = 2; // 页码，默认1
+  string status = 3; // 状态，默认normal
+  int64 id = 4; // 按ID搜索
+  string username = 5; // 按用户名搜索
+  string email = 6; // 按邮箱搜索
+  string sort_field = 7; // 排序字段，支持id，默认id
+  string sort_order = 8; // 排序方向，支持asc、desc，默认asc
+}
+
+// 列出所有TikTok账号响应
+message ListTikTokAccountsReply {
+  repeated TikTokAccountInfo accounts = 1;
+  int32 total = 2;
+}
+
+// 获取并锁定TikTok账号请求
+message LockTikTokAccountsRequest {
+  int32 count = 1; // 需要获取的账号数量，默认1
+  int32 lock_seconds = 2; // 锁定时间，单位秒，默认60秒
+  // 已移除 account_type 字段
+}
+
+// 获取并锁定TikTok账号响应
+message LockTikTokAccountsReply {
+  repeated TikTokAccountInfo accounts = 1;
+  int32 lock_seconds = 2; // 实际锁定的时间
+}
+
+// 解锁TikTok账号请求
+message UnlockTikTokAccountsRequest {
+  repeated int64 ids = 1; // 要解锁的账号ID列表
+  int32 delay = 2; // 延迟释放时间，单位秒，不设置或0表示立即释放
+}
+
+// 解锁TikTok账号响应
+message UnlockTikTokAccountsReply {
+  bool success = 1;
+  int32 unlocked_count = 2; // 成功解锁的账号数量
+}
+
+// TikTok账号信息
+message TikTokAccountInfo {
+  int64 id = 1;
+  string username = 2;
+  string email = 3;
+  string phone = 4;
+  string password = 5;
+  map<string, string> headers = 6;
+  map<string, string> params = 7;
+  string status = 8;
+  string created_at = 9;
+  string updated_at = 10;
+}
+
+// 错误原因枚举
+enum ErrorReason {
+  TIKTOK_ACCOUNT_NOT_FOUND = 0;
+  TIKTOK_ACCOUNT_ALREADY_EXISTS = 1;
+  INVALID_PARAMETER = 2;
+}

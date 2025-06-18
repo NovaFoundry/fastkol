@@ -16,7 +16,7 @@ import (
 )
 
 // ProviderSet is data providers.
-var ProviderSet = wire.NewSet(NewData, NewGreeterRepo, NewTwitterAccountRepo, NewInstagramAccountRepo)
+var ProviderSet = wire.NewSet(NewData, NewGreeterRepo, NewTwitterAccountRepo, NewInstagramAccountRepo, NewTikTokAccountRepo)
 
 // Data .
 type Data struct {
