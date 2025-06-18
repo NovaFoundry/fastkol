@@ -13,7 +13,24 @@ export function parseCurlCommand(curlCommand: string): { headers: Record<string,
       }
     }
   }
-  const hasCookie = Object.keys(headers).some(k => k === 'cookie');
+  
+  // 检查是否已经从header中解析到cookie
+  let hasCookie = Object.keys(headers).some(k => k === 'cookie');
+  
+  // 如果没有从header中解析到cookie，尝试解析--cookie参数
+  if (!hasCookie) {
+    const cookieRegex = /--cookie\s+'([^']+)'/g;
+    let cookieMatch;
+    while ((cookieMatch = cookieRegex.exec(curlCommand)) !== null) {
+      const cookieValue = cookieMatch[1];
+      if (cookieValue) {
+        headers['cookie'] = cookieValue;
+        hasCookie = true;
+        break;
+      }
+    }
+  }
+  
   return { headers, hasCookie };
 }
 
@@ -48,4 +65,4 @@ export function parseFetchHeaders(fetchString: string): { headers: Record<string
   }
   const hasCookie = Object.keys(headers).some(k => k === 'cookie');
   return { headers, hasCookie };
-} 
+}

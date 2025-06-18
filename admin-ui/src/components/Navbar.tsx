@@ -13,6 +13,10 @@ const menuItems = [
     key: '/instagramAccount',
     label: 'Instagram账号管理',
   },
+  {
+    key: '/tiktokAccount',
+    label: 'TikTok账号管理',
+  },
 ];
 
 export default function Navbar() {
@@ -56,4 +60,4 @@ export default function Navbar() {
       </span>
     </div>
   );
-} 
+}
