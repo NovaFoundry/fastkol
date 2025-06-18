@@ -68,7 +68,11 @@ async def test_fetcher(platform, action, params):
             count = params.get("count", 70)
             uid = params.get("uid")
             logger.info(f"获取用户关注: {username}, 数量: {count}, uid: {uid}")
-            _, _, _, result = await fetcher.fetch_user_followings(username=username, uid=uid)
+            if platform == "tiktok":
+                sec_uid = params.get("sec_uid")
+                _, _, _, result = await fetcher.fetch_user_followings(username=username, sec_uid=sec_uid)
+            else:
+                _, _, _, result = await fetcher.fetch_user_followings(username=username, uid=uid)
         elif action == "fetch_user_reels":
             username = params.get("username")
             count = params.get("count", 20)
@@ -94,7 +98,7 @@ async def test_fetcher(platform, action, params):
 if __name__ == "__main__":
     # 示例: 测试 Twitter 爬虫
     platform = "tiktok"
-    action = "fetch_user_profile"  # 修改为测试搜索用户
+    action = "fetch_user_followings"  # 修改为测试搜索用户
     params = {
         # "uid": "64325658281",
         "username": "tzu888",

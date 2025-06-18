@@ -349,3 +349,197 @@ class TiktokFetcher(BaseFetcher):
         except Exception as e:
             self.logger.error(f"搜索用户失败: {str(e)}")
             return False, str(e), []
+            
+    async def fetch_user_followings(
+        self, username: str, sec_uid: str = None, pages: int = 1, size: int = 30
+    ) -> Tuple[bool, int, str, List[Dict[str, Any]]]:
+        """
+        获取TikTok用户的关注列表，支持分页
+        
+        Args:
+            username (str): 用户名
+            sec_uid (str, optional): 用户的secUid，如果提供则使用此ID获取关注列表
+            pages (int): 要获取的页数，默认1
+            size (int): 每页获取的数量，默认30
+            
+        Returns:
+            Tuple[bool, int, str, List[Dict[str, Any]]]: (是否成功, 状态码, 消息, 关注列表)
+        """
+        self.logger.info(f"获取 TikTok 用户 {username} 的关注列表，页数: {pages}, 每页数量: {size}")
+        
+        all_followings = []
+        max_cursor = 0
+        min_cursor = 0
+        
+        try:
+            # 如果没有提供 sec_uid，先获取用户资料以获取 sec_uid
+            if not sec_uid:
+                success, code, msg, user_profile = await self.fetch_user_profile(username)
+                if not success or not user_profile:
+                    return False, code, f"获取用户资料失败: {msg}", []
+                sec_uid = user_profile.get("sec_uid", "")
+                if not sec_uid:
+                    return False, 404, "无法获取用户 sec_uid", []
+            
+            # 分页获取关注列表
+            for _ in range(pages):
+                ok, code, msg, followings, next_max_cursor, next_min_cursor = await self._fetch_user_followings(
+                    username=username, 
+                    sec_uid=sec_uid, 
+                    count=size, 
+                    max_cursor=max_cursor, 
+                    min_cursor=min_cursor
+                )
+                
+                if not ok:
+                    return ok, code, msg, all_followings
+                
+                all_followings.extend(followings)
+                
+                # 更新游标值用于下一页请求
+                max_cursor = next_max_cursor
+                min_cursor = next_min_cursor
+                
+                # 如果没有更多数据，退出循环
+                if not next_max_cursor or next_max_cursor == max_cursor:
+                    break
+                    
+                # 添加随机延迟，避免请求过于频繁
+                await self._random_delay(1, 2)
+            
+            self.logger.info(f"成功获取用户 {username} 的关注列表，总数量: {len(all_followings)}")
+            return True, 200, "success", all_followings
+            
+        except Exception as e:
+            self.logger.error(f"获取用户关注列表失败: {str(e)}")
+            import traceback
+            self.logger.error(traceback.format_exc())
+            return False, 500, str(e), []
+    
+    async def _fetch_user_followings(
+        self, username: str, sec_uid: str, count: int = 30, max_cursor: int = 0, min_cursor: int = 0
+    ) -> Tuple[bool, int, str, List[Dict[str, Any]], int, int]:
+        """
+        获取TikTok用户的单页关注列表
+        
+        Args:
+            username (str): 用户名
+            sec_uid (str): 用户的secUid
+            count (int): 获取的数量，默认30
+            max_cursor (int): 最大游标值，用于分页，默认0
+            min_cursor (int): 最小游标值，用于分页，默认0
+            
+        Returns:
+            Tuple[bool, int, str, List[Dict[str, Any]], int, int]: (是否成功, 状态码, 消息, 关注列表, 下一页最大游标, 下一页最小游标)
+        """
+        followings = []
+        next_max_cursor = max_cursor
+        next_min_cursor = min_cursor
+        
+        try:
+            # 构建请求 URL
+            endpoint = self.api_endpoints.get("user_followings")
+            if not endpoint:
+                self.logger.error("无法获取 user_followings API 端点")
+                return False, 500, "API端点未配置", [], next_max_cursor, next_min_cursor
+            
+            # 准备请求参数
+            params = {
+                "app_language": "zh-Hans",
+                "app_name": "tiktok_web",
+                "browser_language": "zh-CN",
+                "browser_name": "Mozilla",
+                "browser_online": "true",
+                "browser_platform": "MacIntel",
+                "browser_version": "5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36",
+                "channel": "tiktok_web",
+                "cookie_enabled": "true",
+                "count": str(count),
+                "data_collection_enabled": "true",
+                "device_platform": "web_pc",
+                "focus_state": "true",
+                "from_page": "user",
+                "history_len": "6",
+                "is_fullscreen": "false",
+                "is_page_visible": "true",
+                "maxCursor": str(max_cursor),
+                "minCursor": str(min_cursor),
+                "os": "mac",
+                "priority_region": "US",
+                "region": "US",
+                "secUid": sec_uid
+            }
+            
+            # 构建完整URL
+            query_string = urllib.parse.urlencode(params)
+            url = f"{endpoint}?{query_string}"
+            
+            # 准备请求头
+            headers = self._get_headers()
+            
+            # 设置代理
+            proxy = None
+            if self.proxy_enabled and self.proxy_url:
+                proxy = self.proxy_url
+                self.logger.info(f"使用代理: {proxy}")
+            
+            # 发送请求
+            timeout = aiohttp.ClientTimeout(total=30)
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                request_kwargs = {"headers": headers}
+                if proxy:
+                    request_kwargs["proxy"] = proxy
+                
+                async with session.get(url, **request_kwargs) as response:
+                    self.logger.info(f"请求状态码: {response.status}")
+                    if response.status != 200:
+                        return False, response.status, f"请求失败，状态码: {response.status}", [], next_max_cursor, next_min_cursor
+                    
+                    response_data = await response.json()
+            
+            # 解析响应数据
+            status_code = response_data.get("statusCode", 0)
+            if status_code != 0:
+                return False, status_code, response_data.get("statusMsg", "请求失败"), [], next_max_cursor, next_min_cursor
+            
+            # 提取关注列表
+            users_data = response_data.get("userList", [])
+            for user_data in users_data:
+                user = user_data.get("user", {})
+                stats = user_data.get("stats", {})
+                
+                following_user = {
+                    "uid": user.get("id", ""),
+                    "sec_uid": user.get("secUid", ""),
+                    "username": user.get("uniqueId", ""),
+                    "nickname": user.get("nickname", ""),
+                    "is_verified": user.get("verified", False),
+                    "followers_count": stats.get("followerCount", 0),
+                    "following_count": stats.get("followingCount", 0),
+                    "post_count": stats.get("videoCount", 0),
+                    "bio": user.get("signature", ""),
+                    "country_code": user.get("region", ""),
+                    "url": f"https://www.tiktok.com/@{user.get('uniqueId', '')}"
+                }
+                
+                followings.append(following_user)
+            
+            # 获取分页信息
+            has_more = response_data.get("hasMore", False)
+            next_max_cursor = response_data.get("maxCursor", max_cursor)
+            next_min_cursor = response_data.get("minCursor", min_cursor)
+            
+            self.logger.info(f"成功获取用户 {username} 的关注列表，当前页数量: {len(followings)}")
+            return True, 200, "success", followings, next_max_cursor, next_min_cursor
+            
+        except asyncio.TimeoutError:
+            self.logger.error(f"获取用户关注列表请求超时")
+            return False, 408, "请求超时", [], next_max_cursor, next_min_cursor
+        except aiohttp.ClientError as e:
+            self.logger.error(f"请求错误: {str(e)}")
+            return False, 500, str(e), [], next_max_cursor, next_min_cursor
+        except Exception as e:
+            self.logger.error(f"获取用户关注列表失败: {str(e)}")
+            import traceback
+            self.logger.error(traceback.format_exc())
+            return False, 500, str(e), [], next_max_cursor, next_min_cursor
