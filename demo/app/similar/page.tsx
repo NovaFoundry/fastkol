@@ -155,7 +155,7 @@ export default function SimilarPage() {
                   onChange={(value) => setPlatform(value)}
                 >
                   <Option value="twitter">Twitter</Option>
-                  <Option value="tiktok">TikTok</Option>
+                  {/* <Option value="tiktok">TikTok</Option> */}
                   {/* <Option value="youtube">YouTube</Option> */}
                 </Select>
               </Form.Item>
