@@ -21,10 +21,6 @@ export default function NavBar() {
               key: '/similar',
               label: <Link href="/similar">相似账号</Link>,
             },
-            {
-              key: '/search',
-              label: <Link href="/search">搜索账号</Link>,
-            },
           ]}
         />
       </div>

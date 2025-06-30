@@ -155,9 +155,8 @@ export default function SimilarPage() {
                   onChange={(value) => setPlatform(value)}
                 >
                   <Option value="twitter">Twitter</Option>
-                  <Option value="instagram">Instagram</Option>
-                  {/* <Option value="tiktok">TikTok</Option>
-                  <Option value="youtube">YouTube</Option> */}
+                  <Option value="tiktok">TikTok</Option>
+                  {/* <Option value="youtube">YouTube</Option> */}
                 </Select>
               </Form.Item>
 
@@ -178,7 +177,7 @@ export default function SimilarPage() {
                 label="Count"
                 rules={[
                   { required: true, message: 'Please enter count' },
-                  { type: 'number', min: 1, max: 200, message: 'Count must be between 1 and 200' }
+                  { type: 'number', min: 1, max: 100, message: 'Count must be between 1 and 100' }
                 ]}
               >
                 <InputNumber
@@ -186,7 +185,7 @@ export default function SimilarPage() {
                   style={{ width: '100%' }}
                   placeholder="Enter count"
                   min={1}
-                  max={200}
+                  max={100}
                 />
               </Form.Item>
 
@@ -321,4 +320,4 @@ export default function SimilarPage() {
       </div>
     </main>
   );
-} 
+}
