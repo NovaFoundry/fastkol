@@ -81,6 +81,10 @@ async def test_fetcher(platform, action, params):
             result = await fetcher.fetch_user_reels(username, count, uid=uid)
             # 打印获取到的Reels数量
             logger.info(f"成功获取 {len(result)} 条Reels")
+        elif action == "fetch_user_info_with_llm":
+            username = params.get("username")
+            logger.info(f"使用大模型获取用户信息: {username}")
+            _, _, result = await fetcher.fetch_user_info_with_llm(username=username)
         else:
             raise ValueError(f"不支持的操作: {action}")
         logger.info(f"操作完成: {action}")
@@ -97,11 +101,11 @@ async def test_fetcher(platform, action, params):
 
 if __name__ == "__main__":
     # 示例: 测试 Twitter 爬虫
-    platform = "tiktok"
-    action = "fetch_user_followings"  # 修改为测试搜索用户
+    platform = "twitter"
+    action = "fetch_user_info_with_llm"  # 修改为测试搜索用户
     params = {
         # "uid": "64325658281",
-        "username": "tzu888",
+        "username": "Xuxiaodong3",
         "count": 20  # 要获取的用户数量
     }
     

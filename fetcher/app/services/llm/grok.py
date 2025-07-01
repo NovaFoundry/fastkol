@@ -3,10 +3,11 @@ import aiohttp
 import json
 import asyncio
 import logging
-from openai import AsyncOpenAI, DefaultHttpxClient
 from .base import BaseLLMService
 from .exceptions import LLMServiceError, LLMRateLimitError
 from .ratelimiter import LLMRateLimiter
+
+# logger = logging.getLogger(__name__)
 
 class GrokService(BaseLLMService):
     """Grok大模型服务实现"""
@@ -17,32 +18,35 @@ class GrokService(BaseLLMService):
         Args:
             config: 配置字典，包含API密钥等信息
         """
+        # 调用父类初始化方法
         super().__init__(config)
         
-        # 获取代理配置
-        proxy = config.get("proxy")
-        
-        # 创建HTTP客户端
-        http_client = None
-        if proxy:
-            self.logger.info(f"使用代理: {proxy}")
-            http_client = DefaultHttpxClient(proxy=proxy)
+        # 获取API配置
+        self.api_key = self.config.get("api_key")
+        self.api_base = self.config.get("api_base", "https://api.x.ai/v1")
+        self.default_model = self.config.get("model", "grok-3")
         
         # 获取超时设置（秒）
-        timeout_seconds = config.get("timeout", 60)
+        self.timeout_seconds = self.config.get("timeout", 60)
+        self.max_retries = self.config.get("max_retries", 3)
         
-        self.client = AsyncOpenAI(
-            api_key=config.get("api_key"),
-            base_url=config.get("api_base"),
-            timeout=timeout_seconds,  # 直接使用浮点数表示秒数
-            max_retries=config.get("max_retries", 3),
-            http_client=http_client
-        )
-        self.default_model = config.get("model", "grok-1")
+        # 获取代理配置
+        self.proxy = self.config.get("proxy")
+        if self.proxy:
+            self.logger.info(f"使用代理: {self.proxy}")
+        
         self.logger.info(f"Grok服务初始化完成，默认模型: {self.default_model}")
         
         # 初始化模型限流器缓存
         self.rate_limiters = {}
+        
+        # 创建HTTP会话
+        self.session = None
+    
+    async def _ensure_session(self):
+        """确保HTTP会话已创建"""
+        if self.session is None:
+            self.session = aiohttp.ClientSession()
     
     def _get_rate_limiter(self, model: str) -> LLMRateLimiter:
         """获取或创建模型限流器
@@ -56,6 +60,17 @@ class GrokService(BaseLLMService):
         if model not in self.rate_limiters:
             self.rate_limiters[model] = LLMRateLimiter("grok", model, self.config)
         return self.rate_limiters[model]
+    
+    def _get_headers(self) -> Dict[str, str]:
+        """获取API请求头
+        
+        Returns:
+            Dict[str, str]: 请求头字典
+        """
+        return {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {self.api_key}"
+        }
     
     async def chat_completion(
         self, 
@@ -89,19 +104,53 @@ class GrokService(BaseLLMService):
             
             self.logger.debug(f"发送请求到Grok API，模型: {_model}, 温度: {_temperature}")
             
-            response = await self.client.chat.completions.create(
-                model=_model,
-                messages=messages,
-                temperature=_temperature,
-                max_tokens=_max_tokens,
-                **kwargs
-            )
+            # 确保会话已创建
+            await self._ensure_session()
+            print("chat_completion:", self.chat_completion)
             
-            return response.model_dump()
+            # 构建请求数据
+            request_data = {
+                "model": _model,
+                "messages": messages,
+                "temperature": _temperature,
+                "max_tokens": _max_tokens
+            }
+            
+            # 添加其他参数
+            for key, value in kwargs.items():
+                request_data[key] = value
+            print("request_data:", request_data)
+            
+            # 设置请求选项
+            request_kwargs = {
+                "headers": self._get_headers(),
+                "json": request_data,
+                "timeout": aiohttp.ClientTimeout(total=self.timeout_seconds)
+            }
+            
+            # 添加代理配置
+            if self.proxy:
+                request_kwargs["proxy"] = self.proxy
+            
+            # 发送请求
+            url = f"{self.api_base}/chat/completions"
+            async with self.session.post(url, **request_kwargs) as response:
+                if response.status != 200:
+                    error_text = await response.text()
+                    if "rate limit" in error_text.lower():
+                        self.logger.error(f"Grok API速率限制错误: {error_text}")
+                        raise LLMRateLimitError(f"Grok API速率限制错误: {error_text}")
+                    self.logger.error(f"Grok API请求失败，状态码: {response.status}, 错误: {error_text}")
+                    raise LLMServiceError(f"Grok API请求失败，状态码: {response.status}, 错误: {error_text}")
+                
+                return await response.json()
             
         except asyncio.TimeoutError as e:
             self.logger.error(f"Grok API请求超时: {str(e)}")
             raise LLMServiceError(f"Grok API请求超时: {str(e)}")
+        except aiohttp.ClientError as e:
+            self.logger.error(f"Grok API请求错误: {str(e)}")
+            raise LLMServiceError(f"Grok API请求错误: {str(e)}")
         except Exception as e:
             error_msg = str(e)
             if "rate limit" in error_msg.lower():
@@ -137,17 +186,49 @@ class GrokService(BaseLLMService):
             rate_limiter = self._get_rate_limiter(_model)
             await rate_limiter.acquire()
             
-            response = await self.client.embeddings.create(
-                model=_model,
-                input=input_texts,
-                **kwargs
-            )
+            # 确保会话已创建
+            await self._ensure_session()
             
-            return response.model_dump()
+            # 构建请求数据
+            request_data = {
+                "model": _model,
+                "input": input_texts
+            }
+            
+            # 添加其他参数
+            for key, value in kwargs.items():
+                request_data[key] = value
+            
+            # 设置请求选项
+            request_kwargs = {
+                "headers": self._get_headers(),
+                "json": request_data,
+                "timeout": aiohttp.ClientTimeout(total=self.timeout_seconds)
+            }
+            
+            # 添加代理配置
+            if self.proxy:
+                request_kwargs["proxy"] = self.proxy
+            
+            # 发送请求
+            url = f"{self.api_base}/embeddings"
+            async with self.session.post(url, **request_kwargs) as response:
+                if response.status != 200:
+                    error_text = await response.text()
+                    if "rate limit" in error_text.lower():
+                        self.logger.error(f"Grok嵌入API速率限制错误: {error_text}")
+                        raise LLMRateLimitError(f"Grok嵌入API速率限制错误: {error_text}")
+                    self.logger.error(f"Grok嵌入API请求失败，状态码: {response.status}, 错误: {error_text}")
+                    raise LLMServiceError(f"Grok嵌入API请求失败，状态码: {response.status}, 错误: {error_text}")
+                
+                return await response.json()
             
         except asyncio.TimeoutError as e:
             self.logger.error(f"Grok嵌入API请求超时: {str(e)}")
             raise LLMServiceError(f"Grok嵌入API请求超时: {str(e)}")
+        except aiohttp.ClientError as e:
+            self.logger.error(f"Grok嵌入API请求错误: {str(e)}")
+            raise LLMServiceError(f"Grok嵌入API请求错误: {str(e)}")
         except Exception as e:
             error_msg = str(e)
             if "rate limit" in error_msg.lower():
@@ -162,6 +243,8 @@ class GrokService(BaseLLMService):
         for limiter in self.rate_limiters.values():
             await limiter.close()
         
-        # 关闭API客户端
-        self.logger.info("关闭Grok服务连接")
-        await self.client.close()
+        # 关闭HTTP会话
+        if self.session is not None:
+            self.logger.info("关闭Grok服务连接")
+            await self.session.close()
+            self.session = None

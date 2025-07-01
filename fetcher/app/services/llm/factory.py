@@ -1,8 +1,11 @@
 from typing import Dict, Any, Optional
+import logging
 from app.settings import settings
 from .base import BaseLLMService
 from .grok import GrokService
 from .exceptions import LLMServiceError
+
+logger = logging.getLogger(__name__)
 
 class LLMServiceFactory:
     """大模型服务工厂类，用于创建不同的LLM服务实例"""
@@ -37,6 +40,12 @@ class LLMServiceFactory:
         # 合并全局设置和提供商特定设置
         global_settings = llm_config.get("settings", {})
         merged_config = {**global_settings, **provider_config}
+        
+        # 添加全局代理配置
+        proxy_config = settings.get_config("proxy", {})
+        if proxy_config.get("enabled", False):
+            merged_config["proxy"] = proxy_config.get("url")
+            logger.info(f"为 LLM 服务 {provider_name} 配置代理: {merged_config['proxy']}")
         
         # 根据提供商创建相应的服务实例
         if provider_name.lower() == "grok":
