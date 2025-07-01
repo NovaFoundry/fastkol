@@ -29,10 +29,6 @@ class TwitterUserInfo(BaseModel):
     """Twitter用户信息的结构化模型"""
     keywords: List[KeywordItem] = Field(description="List of keywords")
 
-class TwitterUserInfoList(BaseModel):
-    """Twitter用户信息列表的结构化模型"""
-    user_info_list: List[TwitterUserInfo] = Field(description="List of Twitter user info")
-
 logger = logging.getLogger(__name__)
 
 # =====================
@@ -1440,12 +1436,12 @@ class TwitterFetcher(BaseFetcher):
         # 只返回前target_count个
         return dict(list(result_users.items())[:target_count])
         
-    async def fetch_user_info_with_llm(self, username: str) -> Tuple[bool, str, Dict[str, Any]]:
+    async def fetch_user_info_with_llm(self, username: str, user_profile: Dict[str, Any] = None, tweets: List[Dict[str, Any]] = None) -> Tuple[bool, str, Dict[str, Any]]:
         """使用大模型获取Twitter用户的基本信息和关键词
-        
         Args:
             username (str): Twitter用户名
-            
+            user_profile (Dict[str, Any], optional): 用户基本资料. Defaults to None.
+            normal_tweets (List[Dict[str, Any]], optional): 普通推文. Defaults to None.
         Returns:
             Tuple[bool, str, Dict[str, Any]]: 
                 - 成功标志
@@ -1456,42 +1452,67 @@ class TwitterFetcher(BaseFetcher):
         
         try:
             # 1. 获取用户基本资料
-            user_profile = await self.fetch_user_profile(username)
             if not user_profile:
-                return False, f"无法获取用户 {username} 的资料", {}
-            
-            # 2. 从app.services.llm.factory导入LLM服务工厂
+                user_profile = await self.fetch_user_profile(username)
+                if not user_profile:
+                    return False, f"无法获取用户 {username} 的资料", {}
+
+            # 2. 获取用户最新的tweets
+            if not tweets:
+                _, _, _, _, tweets = await self.fetch_user_tweets(username=username, uid = user_profile.get('uid'), pages=1)
+                if not tweets:
+                    return False, f"无法获取用户 {username} 的tweets", {}
+
+            print("tweets", tweets)
+
+            # 3. 从app.services.llm.factory导入LLM服务工厂
             from app.services.llm.factory import LLMServiceFactory
             
-            # 3. 创建LLM服务实例
+            # 4. 创建LLM服务实例
             llm_service = LLMServiceFactory.create()
             
-            # 4. 构建提示词
+            # 5. 构建提示词
+            # 构建推文部分的提示词
+            tweets_prompt = "最新推文：\n\n"
+            for i, tweet in enumerate(tweets[:20]):
+                tweets_prompt += f"[推文{i+1}]\n{tweet.get('text', '')}\n\n"
+
             prompt = [
                 {
                     "role": "system", 
                     "content": '''你是一个专业的社交媒体分析助手。请分析这个Twitter账号并提取：
-1. 关键词提取与评分：提取若干个个最能代表该账号内容和特点的关键词，并对每个关键词进行1-10分的评分。
+1. 关键词来源
+   - 我提供的bio和最新的tweets
+   - 若bio和tweets提取不出高质量关键词，那就用在线搜索获取
+2. 关键词提取与评分：提取若干个个最能代表该账号内容和特点的关键词，并对每个关键词进行1-10分的评分。
    - 评分标准：
      - 10分：极其核心，完美代表该账号的核心价值和内容
      - 7-9分：非常重要，频繁出现或与账号定位高度相关
      - 4-6分：中等重要性，在账号内容中有一定出现频率
      - 1-3分：相关但不核心，偶尔出现或边缘相关
    - 关键词数量：根据账号粉丝数和推文数动态调整
-     - 小型账号（粉丝<1000或推文<500）：15-20个关键词
-     - 中型账号（粉丝1000-10000或推文500-3000）：20-30个关键词
-     - 大型账号（粉丝10000-100000或推文3000-10000）：30-40个关键词
-     - 超大型账号（粉丝>100000或推文>10000）：40-50个关键词
+     - 小型账号（粉丝<1000或推文<500）：8-12个关键词
+     - 中型账号（粉丝1000-10000或推文500-3000）：12-18个关键词
+     - 大型账号（粉丝10000-100000或推文3000-10000）：15-25个关键词
+     - 超大型账号（粉丝>100000或推文>10000）：20-30个关键词
      - 如果粉丝数和推文数对应不同级别，取较高级别的关键词数量
    - 关键词应涵盖：主题领域、专业术语、内容特色、目标受众特征、情感倾向等，只提取真正相关的关键词，如果无法达到建议数量，可以返回较少数量但更高质量的关键词
    - 返回格式：每个关键词包含"word"（原始语言关键词）、"word_en"（英文翻译，如原词已是英文则保持不变）和"score"三个字段
    - 重要：无论账号使用何种语言，你都必须同时提供原始语言关键词和对应的英文翻译
-   - 如果是推理模型，不要输出推理过程，直接输出结果就行
 '''
                 },
                 {
                     "role": "user",
-                    "content": f"请分析以下Twitter用户信息:\n\n用户名: {username}\n昵称: {user_profile.get('nickname', '')}\n简介: {user_profile.get('bio', '')}\n关注者数: {user_profile.get('followers_count', 0)}\n关注数: {user_profile.get('following_count', 0)}\n推文数: {user_profile.get('tweet_count', 0)}\n\n请按照系统提示的要求提取关键词并评分，以JSON格式返回。"
+                    "content": f'''
+请分析以下Twitter用户信息:
+用户名: {username}
+昵称: {user_profile.get('nickname', '')}
+简介: {user_profile.get('bio', '')}
+关注者数: {user_profile.get('followers_count', 0)}
+关注数: {user_profile.get('following_count', 0)}
+推文数: {user_profile.get('tweet_count', 0)}
+请按照系统提示的要求提取关键词并评分，以JSON格式返回
+'''
                 }
             ]
             
@@ -1525,8 +1546,10 @@ class TwitterFetcher(BaseFetcher):
                 temperature=0.2,
                 max_tokens=4000,
                 messages=prompt,
-                search_parameters={"mode": "on"},
-                response_format=response_format
+                search_parameters={"mode": "auto"},
+                response_format=response_format,
+                # 添加压缩参数，减少空格和格式化
+                response_options={"compact": True}
             )
 
             print("response:", response)
@@ -1539,45 +1562,7 @@ class TwitterFetcher(BaseFetcher):
             reasoning_content = response["choices"][0]["message"].get("reasoning_content", "")
             
             # 8. 使用Pydantic模型解析和验证JSON
-            import json
-            import re
             try:
-                # 如果content为空但reasoning_content不为空，尝试从reasoning_content中提取JSON
-                if not content and reasoning_content:
-                    self.logger.info("content为空，尝试从reasoning_content中提取JSON")
-                    
-                    # 尝试方法1：查找JSON格式内容
-                    json_pattern = r'\{\s*"keywords"\s*:\s*\[.*?\]\s*\}'
-                    json_match = re.search(json_pattern, reasoning_content, re.DOTALL)
-                    
-                    if json_match:
-                        content = json_match.group(0)
-                    else:
-                        # 尝试方法2：从reasoning_content中提取关键词列表并构建JSON
-                        self.logger.info("未找到JSON格式，尝试提取关键词列表")
-                        # 提取关键词和评分
-                        keywords = []
-                        # 查找类似 "1. 格斗 (Fighting)" 或 "格斗 (Fighting) - 10分" 的模式
-                        keyword_pattern = r'(?:\d+\.\s*)?(\w+\s*)\s*\(([\w\s-]+)\)(?:\s*[-:]\s*(\d+)分?)?'
-                        keyword_matches = re.findall(keyword_pattern, reasoning_content)
-                        
-                        for match in keyword_matches:
-                            word = match[0].strip()
-                            word_en = match[1].strip()
-                            score = int(match[2]) if match[2].isdigit() else 5  # 默认评分为5
-                            
-                            if word and word_en:
-                                keywords.append({
-                                    "word": word,
-                                    "word_en": word_en,
-                                    "score": score
-                                })
-                        
-                        if keywords:
-                            content = json.dumps({"keywords": keywords})
-                        else:
-                            return False, "无法从reasoning_content中提取关键词", {}
-                
                 # 解析JSON字符串
                 json_data = json.loads(content)
                 
@@ -1599,5 +1584,5 @@ class TwitterFetcher(BaseFetcher):
             return False, str(e), {}
         finally:
             # 关闭LLM服务连接
-            if locals().get('llm_service'):
+            if 'llm_service' in locals():
                 await llm_service.close()

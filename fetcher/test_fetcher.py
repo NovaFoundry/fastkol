@@ -10,8 +10,6 @@ from app.fetchers.tiktok import TiktokFetcher
 # 添加项目根目录到 Python 路径
 current_dir = os.path.abspath(os.path.dirname(__file__))
 sys.path.insert(0, current_dir)
-print(f"当前目录: {current_dir}")
-print(f"Python 路径: {sys.path}")
 
 # 配置日志 - 设置为 DEBUG 级别以获取更多信息
 logging.basicConfig(level=logging.DEBUG, 
