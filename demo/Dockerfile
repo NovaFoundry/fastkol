@@ -8,7 +8,7 @@ RUN npm install -g pnpm
 
 # 复制package.json和pnpm-lock.yaml（如果有）
 COPY package.json ./
-COPY pnpm-lock.yaml* ./
+COPY pnpm-lock.yaml ./
 
 # 安装构建原生依赖所需工具
 RUN apk add --no-cache python3 make g++
@@ -35,6 +35,7 @@ RUN npm install -g pnpm --no-fund --no-audit
 
 # 只复制生产所需文件
 COPY --from=builder /app/package.json ./
+COPY --from=builder /app/pnpm-lock.yaml ./
 COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/.env* ./
