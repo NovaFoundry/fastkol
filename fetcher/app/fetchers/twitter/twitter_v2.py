@@ -489,6 +489,9 @@ class TwitterFetcher(BaseFetcher):
                 if user['uid'] in user_tweets:
                     user['avg_views_last_10_tweets'] = user_tweets[user['uid']]['avg_views_last_10_tweets']
                     result_users.append(user)
+                else:
+                    user['avg_views_last_10_tweets'] = 0
+                    result_users.append(user)
 
             # for user in sorted_users:
             #     ok, _, _, _, normal_tweets = await self.fetch_user_tweets(username=user['username'], uid=user['uid'], pages=1)
