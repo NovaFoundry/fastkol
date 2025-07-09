@@ -456,7 +456,8 @@ class TwitterFetcher(BaseFetcher):
             # 步骤3: 获取关注列表
             ok, _, _, followings = await self.fetch_user_followings(uid=uid, username=username, pages=1, size=70, channel=CHANNEL_RAPID_TWITTER241)
             if not ok:
-                return (False, "获取关注列表失败", [])
+                self.logger.error(f"获取关注列表失败")
+                # return (False, "获取关注列表失败", [])
             followings_users.extend(followings)
             # ====== 新增：先过滤关注列表 ======
             if follows:
@@ -1463,8 +1464,6 @@ class TwitterFetcher(BaseFetcher):
                 if not tweets:
                     return False, f"无法获取用户 {username} 的tweets", {}
 
-            print("tweets", tweets)
-
             # 3. 从app.services.llm.factory导入LLM服务工厂
             from app.services.llm.factory import LLMServiceFactory
             
@@ -1473,46 +1472,41 @@ class TwitterFetcher(BaseFetcher):
             
             # 5. 构建提示词
             # 构建推文部分的提示词
-            tweets_prompt = "最新推文：\n\n"
-            for i, tweet in enumerate(tweets[:20]):
-                tweets_prompt += f"[推文{i+1}]\n{tweet.get('text', '')}\n\n"
+            tweets_prompt = "Recent tweets:\n\n"
+            for i, tweet in enumerate(tweets):
+                tweets_prompt += f"[Tweet{i+1}]\n{tweet.get('text', '')}\n\n"
 
             prompt = [
                 {
                     "role": "system", 
-                    "content": '''你是一个专业的社交媒体分析助手。请分析这个Twitter账号并提取：
-1. 关键词来源
-   - 我提供的bio和最新的tweets
-   - 若bio和tweets提取不出高质量关键词，那就用在线搜索获取
-2. 关键词提取与评分：提取若干个个最能代表该账号内容和特点的关键词，并对每个关键词进行1-10分的评分。
-   - 评分标准：
-     - 10分：极其核心，完美代表该账号的核心价值和内容
-     - 7-9分：非常重要，频繁出现或与账号定位高度相关
-     - 4-6分：中等重要性，在账号内容中有一定出现频率
-     - 1-3分：相关但不核心，偶尔出现或边缘相关
-   - 关键词数量：根据账号粉丝数和推文数动态调整
-     - 小型账号（粉丝<1000或推文<500）：8-12个关键词
-     - 中型账号（粉丝1000-10000或推文500-3000）：12-18个关键词
-     - 大型账号（粉丝10000-100000或推文3000-10000）：15-25个关键词
-     - 超大型账号（粉丝>100000或推文>10000）：20-30个关键词
-     - 如果粉丝数和推文数对应不同级别，取较高级别的关键词数量
-   - 关键词应涵盖：主题领域、专业术语、内容特色、目标受众特征、情感倾向等，只提取真正相关的关键词，如果无法达到建议数量，可以返回较少数量但更高质量的关键词
-   - 返回格式：每个关键词包含"word"（原始语言关键词）、"word_en"（英文翻译，如原词已是英文则保持不变）和"score"三个字段
-   - 重要：无论账号使用何种语言，你都必须同时提供原始语言关键词和对应的英文翻译
-'''
+                    "content": '''You're a social media analyst. Extract and score Twitter account keywords:
+1. Sources: bio, tweets, web search if needed
+2. Score keywords (1-10):
+   - 10: Core content
+   - 7-9: Highly relevant
+   - 4-6: Moderately relevant
+   - 1-3: Peripherally relevant
+3. Keyword count by account size:
+   - Small (<1K followers/<500 tweets): 8-12
+   - Medium (1K-10K/500-3K): 12-18
+   - Large (10K-100K/3K-10K): 15-25
+   - Huge (>100K/>10K): 20-30
+4. Include: topics, terms, style, audience, sentiment
+5. Avoid: personal names or highly specific individual identifiers
+6. Format: "word" (original), "word_en" (English), "score"
+7. Always provide both original and English translation'''
                 },
                 {
                     "role": "user",
-                    "content": f'''
-请分析以下Twitter用户信息:
-用户名: {username}
-昵称: {user_profile.get('nickname', '')}
-简介: {user_profile.get('bio', '')}
-关注者数: {user_profile.get('followers_count', 0)}
-关注数: {user_profile.get('following_count', 0)}
-推文数: {user_profile.get('tweet_count', 0)}
-请按照系统提示的要求提取关键词并评分，以JSON格式返回
-'''
+                    "content": f'''Analyze Twitter user:
+Username: {username}
+Name: {user_profile.get('nickname', '')}
+Bio: {user_profile.get('bio', '')}
+Followers: {user_profile.get('followers_count', 0)}
+Following: {user_profile.get('following_count', 0)}
+Tweets: {user_profile.get('tweet_count', 0)}
+{tweets_prompt}
+Return keywords with scores as JSON'''
                 }
             ]
             
@@ -1532,8 +1526,7 @@ class TwitterFetcher(BaseFetcher):
                                     "score": {"type": "integer", "minimum": 1, "maximum": 10}
                                 },
                                 "required": ["word", "word_en", "score"]
-                            },
-                            "description": "关键词及其重要性评分(1-10)"
+                            }
                         }
                     },
                     "required": ["keywords"]
@@ -1542,7 +1535,7 @@ class TwitterFetcher(BaseFetcher):
             
             # 6. 调用大模型API，启用在线搜索和结构化输出
             response = await llm_service.chat_completion(
-                model="grok-3",
+                model="grok-3-mini",
                 temperature=0.2,
                 max_tokens=4000,
                 messages=prompt,
