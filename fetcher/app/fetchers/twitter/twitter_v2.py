@@ -483,7 +483,8 @@ class TwitterFetcher(BaseFetcher):
                 tag_search_users
             )
 
-            user_tweets = await self.fetch_tweets_for_users_concurrent(users=sorted_users, pages=1, avg_views=avg_views, target_count=count)
+            # user_tweets = await self.fetch_tweets_for_users_concurrent(users=sorted_users, pages=1, avg_views=avg_views, target_count=count)
+            user_tweets = {}
             for user in sorted_users:
                 if user['uid'] in user_tweets:
                     user['avg_views_last_10_tweets'] = user_tweets[user['uid']]['avg_views_last_10_tweets']
