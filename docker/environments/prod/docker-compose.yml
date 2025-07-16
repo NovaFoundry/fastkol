@@ -187,9 +187,3 @@ networks:
     driver: bridge
   common_network:
     external: true
-
-volumes:
-  postgres_data:
-  redis_data:
-  traefik_data:
-  consul_data:
