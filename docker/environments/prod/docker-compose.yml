@@ -185,5 +185,6 @@ services:
 networks:
   fastkol_network:
     driver: bridge
+    name: fastkol_network
   common_network:
     external: true
